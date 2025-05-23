@@ -1,0 +1,68 @@
+Package: BayesBrainMap
+Type: Package
+Title: Estimate Brain Networks and Connectivity with Population-Derived Priors
+Version: 0.11.0
+Authors@R: c(
+    person(given = "Amanda",
+           family = "Mejia",
+           email = "mandy.mejia@gmail.com",
+           role = c("aut", "cre")),
+    person(given = "Damon",
+           family = "Pham",
+           email = "damondpham@gmail.com",
+           role = c("aut"),
+           comment = c(ORCID = "0000-0001-7563-4727")),
+    person(given = "Daniel",
+           family = "Spencer",
+           email = "danieladamspencer@gmail.com",
+           role = c("ctb"),
+           comment = c(ORCID = "0000-0002-9705-3605")),
+    person(given = "Mary Beth",
+           family = "Nebel",
+           email = "Nebel@kennedykrieger.org",
+           role = c("ctb"))
+    )
+Maintainer: Amanda Mejia <mandy.mejia@gmail.com>
+Description: Implements Bayesian brain mapping models, including the prior 
+    ICA (independent components analysis) model proposed in Mejia et al. (2020) 
+    <doi:10.1080/01621459.2019.1679638> and the spatial prior ICA model 
+    proposed in proposed in Mejia et al. (2022) 
+    <doi:10.1080/10618600.2022.2104289>. Both models estimate subject-level 
+    brain as deviations from known population-level networks, which are 
+    estimated using standard ICA algorithms. Both models employ an 
+    expectation-maximization algorithm for estimation of the latent brain 
+    networks and unknown model parameters. Includes direct support for 'CIFTI',
+    'GIFTI', and 'NIFTI' neuroimaging file formats.
+Depends: R (>= 3.6.0)
+License: GPL-3
+Additional_repositories: https://inla.r-inla-download.org/R/testing
+Encoding: UTF-8
+Imports:
+    abind,
+    fMRItools (>= 0.5.3),
+    fMRIscrub (>= 0.14.5),
+    foreach,
+    Matrix,
+    matrixStats,
+    methods,
+    pesel,
+    SQUAREM,
+    stats,
+    utils
+Suggests:
+    ciftiTools (>= 0.13.2),
+    excursions,
+    RNifti,
+    oro.nifti,
+    gifti,
+    covr,
+    parallel,
+    doParallel,
+    knitr,
+    rmarkdown,
+    INLA,
+    testthat (>= 3.0.0)
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+URL: https://github.com/mandymejia/BayesBrainMap
+BugReports: https://github.com/mandymejia/BayesBrainMap/issues

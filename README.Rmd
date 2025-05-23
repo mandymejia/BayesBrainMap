@@ -1,0 +1,81 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# BayesBrainMap
+
+R package BayesBrainMap implementing Bayesian brain mapping for individual functional topography and connectivity
+
+<!-- badges: start -->
+[![CRAN status](https://www.r-pkg.org/badges/version/BayesBrainMap)](https://cran.r-project.org/package=BayesBrainMap)
+[![R-CMD-check](https://github.com/mandymejia/BayesBrainMap/workflows/R-CMD-check/badge.svg)](https://github.com/mandymejia/BayesBrainMap/actions)
+[![Codecov test coverage](https://codecov.io/gh/mandymejia/BayesBrainMap/branch/main/graph/badge.svg)](https://app.codecov.io/gh/mandymejia/BayesBrainMap?branch=main)
+<!-- badges: end -->
+
+This package contains functions implementing the BrainMap model proposed in Mejia et al. (2019) and the spatial BrainMap model proposed in proposed in Mejia et al. (2020+). (Previously, these models were named "Template ICA" and were contained in the package [templateICAr](github.com/mandymejia/templateICAr).) For both models, subject-level brain networks are estimated as deviations from known population-level networks, which can be estimated using standard ICA algorithms or provided as a parcellation. Both models employ an expectation-maximization algorithm for estimation of the latent brain networks and unknown model parameters.
+
+BrainMap consists of three steps. The main functions associated with each step are listed below. 
+
+1. Prior estimation: `estimate_prior`. Can export the results with `export_prior`.
+2. BrainMap model estimation (single-subject): `BrainMap`.
+3. Identification of areas of engagement in each network (or deviation from the prior mean): `engagements`.
+
+## Citation
+
+If you use `BayesBrainMap` please cite the following papers:
+
+
+| Name | APA Citation |
+| -------------  | ------------- |
+| [BrainMap](https://doi.org/10.1080/01621459.2019.1679638) | Mejia, A. F., Nebel, M. B., Wang, Y., Caffo, B. S., & Guo, Y. (2020). Template Independent Component Analysis: targeted and reliable estimation of subject-level brain networks using big data population priors. Journal of the American Statistical Association, 115(531), 1151-1177. | 
+| [Spatial BrainMap](https://doi.org/10.1080/10618600.2022.2104289) | Mejia, A. F., Bolin, D., Yue, Y. R., Wang, J., Caffo, B. S., & Nebel, M. B. (2022). Template Independent Component Analysis with spatial priors for accurate subject-level brain network estimation and inference. Journal of Computational and Graphical Statistics, (just-accepted), 1-35. | 
+
+You can also obtain citation information from within R like so:
+
+``` r
+citation("BayesBrainMap")
+```
+
+## Installation
+
+You can install the development version of `BayesBrainMap` from Github with:
+
+``` r
+# install.packages("devtools")
+devtools::install_github("mandymejia/BayesBrainMap")
+```
+
+## Important Notes on Dependencies:
+
+To analyze or visualize CIFTI-format data, `BayesBrainMap` depends on the 
+`ciftiTools` package, which requires an installation of Connectome Workbench. 
+It can be installed from the 
+[HCP website](https://www.humanconnectome.org/software/get-connectome-workbench).
+
+For fitting the BrainMap model with surface-based priors 
+(`spatial_model=TRUE` in `BrainMap()`), INLA is required. Due to a CRAN 
+policy, INLA cannot be installed automatically. You can obtain it by running
+`install.packages("INLA", repos=c(getOption("repos"), INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)`. 
+Alternatively, `dep=FALSE` can be used along with manual installation of 
+dependencies as necessary to avoid installing all of the many INLA dependencies,
+most of which are not actually required. Binaries for alternative Linux builds 
+can be added with the command `inla.binary.install()`. Note that INLA is _not_
+required for standard BrainMap.
+
+Depending on the analysis, PARDISO may reduce computation time. To obtain a free
+academic license forINLA-PARDISO, run `inla.pardiso()` in R after running 
+`library(INLA)`. Provide an academic email address. Once you obtain a license, 
+point to it using `INLA::inla.setOption(pardiso.license = "pardiso.lic")` 
+followed by `INLA::inla.pardiso.check()` to ensure that PARDISO is successfully
+installed and running.

@@ -1,0 +1,41 @@
+citHeader("To cite {BayesBrainMap} in publications use:")
+
+BayesBrainMap_citations <- c(
+	bibentry(
+		bibtype      = "Article",
+		title        = "{T}emplate {I}ndependent {C}omponent {A}nalysis: Targeted and Reliable Estimation of Subject-level Brain Networks Using Big Data Population Priors",
+		author       = c(
+			as.person("Amanda F Mejia"),
+			as.person("Mary Beth Nebel"),
+			as.person("Yikai Wang"),
+			as.person("Brian S Caffo"),
+			as.person("Ying Guo")
+		),
+		journal      = "Journal of the American Statistical Association",
+		year         = "2020",
+		volume       = "115",
+		number       = "531",
+		pages        = "1151--1177",
+		publisher    = "American Statistical Association",
+		doi          = "10.1080/01621459.2019.1679638"
+	),
+
+	bibentry(
+		bibtype      = "Article",
+		title        = "{T}emplate {I}ndependent {C}omponent {A}nalysis with spatial priors for accurate subject-level brain network estimation and inference",
+		author       = c(
+			as.person("Amanda F Mejia"),
+			as.person("David Bolin"),
+			as.person("Yu Ryan Yue"),
+			as.person("Jiongran Wang"),
+			as.person("Brian S Caffo"),
+			as.person("Mary Beth Nebel")
+		),
+		journal      = "Journal of Computational and Graphical Statistics",
+		year         = "2022",
+		number       = "just-accepted",
+		pages        = "1--35",
+		publisher    = "American Statistical Association",
+		doi          = "10.1080/10618600.2022.2104289"
+	)
+)
