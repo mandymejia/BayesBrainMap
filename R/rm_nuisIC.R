@@ -81,7 +81,7 @@ rm_nuisIC <- function(BOLD, DR=NULL, prior_mean=NULL, Q2=NULL, Q2_max=NULL,
   if (is.null(DR)) { DR <- dual_reg(BOLD, prior_mean) }
 
   # ii. SUBTRACT THOSE ESTIMATES FROM THE ORIGINAL DATA --> BOLD2
-  BOLD2 <- BOLD - t(DR$A %*% DR$S) #data without prior ICs
+  BOLD2 <- BOLD - t(DR$A %*% DR$S) #data without networks
 
   # Remove the global signal, for the purpose of estimating the nuisance ICs.
   #   It will be "added back" later when we subtract the nuisance ICs estimate

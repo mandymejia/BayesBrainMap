@@ -293,18 +293,24 @@ dual_reg2 <- function(
   if (!is.null(scrub)) {
     if (is.null(BOLD2)) {
       if (length(scrub) > 0) {
-        if (drop_first > 0) { scrub <- scrub - drop_first }
+        if (drop_first > 0) {
+          scrub <- scrub[scrub > drop_first] - drop_first
+        }
         scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub, ncol(BOLD))
         BOLD <- nuisance_regression(BOLD, cbind(1, scrub_mat))
       }
     } else {
       if (length(scrub[[1]]) > 0) {
-        if (drop_first > 0) { scrub[[1]] <- scrub[[1]] - drop_first }
+        if (drop_first > 0) {
+          scrub[[1]] <- scrub[[1]][scrub[[1]] > drop_first] - drop_first
+        }
         scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub[[1]], ncol(BOLD))
         BOLD <- nuisance_regression(BOLD, cbind(1, scrub_mat))
       }
       if (length(scrub[[2]]) > 0) {
-        if (drop_first > 0) { scrub[[2]] <- scrub[[2]] - drop_first }
+        if (drop_first > 0) {
+          scrub[[2]] <- scrub[[2]][scrub[[2]] > drop_first] - drop_first
+        }
         scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub[[2]], ncol(BOLD2))
         BOLD2 <- nuisance_regression(BOLD2, cbind(1, scrub_mat))
       }

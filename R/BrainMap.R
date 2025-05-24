@@ -794,7 +794,7 @@ BrainMap <- function(
     if (FORMAT == "NIFTI") {
       cat("Unmasked dimensions:           ", paste(nI, collapse=" x "), "\n")
     }
-    cat('Number of prior ICs:        ', nL, "\n")
+    cat('Number of networks:            ', nL, "\n")
     cat('Number of BOLD sessions:       ', nN, "\n")
     cat('Total number of timepoints:    ', sum(nT), "\n")
     cat('\n')
@@ -887,7 +887,10 @@ BrainMap <- function(
       scrub_nn <- if (is.list(scrub)) { scrub[[nn]] } else { scrub }
       if (is.logical(scrub_nn)) { scrub_nn <- which(scrub_nn) }
       if (length(scrub_nn) > 0) {
-        if (drop_first > 0) { scrub_nn <- scrub_nn - drop_first }
+        if (drop_first > 0) { 
+          scrub_nn <- scrub_nn - drop_first
+          scrub_nn <- scrub_nn[scrub_nn>0]
+        }
         scrub_nn_mat <- fMRIscrub::flags_to_nuis_spikes(scrub_nn, nT[nn])
         if (verbose && nN > 1) { cat("\t") }
         if (verbose) { cat("Scrubbing", ncol(scrub_nn_mat), "volumes.\n") }
