@@ -65,11 +65,11 @@ bMapA_cii <- BrainMap(
   cii_fnames[4], pr_cii, brainstructures="left", maxiter=5, TR="prior", resamp_res=2000,
   scrub=c(seq(7), 10, 51, 78), hpf=0
 )
-
 bMapB_cii <- BrainMap(
   cii_fnames[4], pr_cii, brainstructures="left", maxiter=5, TR="prior", resamp_res=2000,
   drop_first=6, scrub=c(3, 7, 10, 51, 78), hpf=0
 )
+testthat::expect_equal(bMapA_cii$subjNet_mean$data, bMapB_cii$subjNet_mean$data)
 
 z <- read_cifti(cii_fnames[4], resamp_res=2000)
 bMap_cii2 <- BrainMap(
