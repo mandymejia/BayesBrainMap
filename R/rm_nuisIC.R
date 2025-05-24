@@ -56,6 +56,15 @@ Q2_max_check <- function(Q2_max, nQ, nT){
 rm_nuisIC <- function(BOLD, DR=NULL, prior_mean=NULL, Q2=NULL, Q2_max=NULL, 
   checkRowCenter=TRUE, verbose=FALSE, return_Q2=FALSE){
 
+  if ( (!is.null(Q2) && Q2==0) || (!is.null(Q2_max) && Q2_max==0) ) {
+    # if (verbose) { cat("`Q2` and/or `Q2_max` specifies no nuisance ICs. Skipping denoising.\n") }
+    if (return_Q2) {
+      return(list(BOLD=BOLD, Q2=0))
+    } else {
+      return(BOLD)
+    }
+  }
+
   stopifnot(is.matrix(BOLD))
   if (checkRowCenter) { stopifnot(all(rowMeans(BOLD) < 1e-8)) }
 
@@ -67,15 +76,6 @@ rm_nuisIC <- function(BOLD, DR=NULL, prior_mean=NULL, Q2=NULL, Q2_max=NULL,
     nQ <- ncol(DR$A)
   }
   Q2_max <- Q2_max_check(Q2_max, nQ=nQ, nT=ncol(BOLD))
-
-  if ( (!is.null(Q2) && Q2==0) || (!is.null(Q2_max) && Q2_max==0) ) {
-    # if (verbose) { cat("`Q2` and/or `Q2_max` specifies no nuisance ICs. Skipping denoising.\n") }
-    if (return_Q2) {
-      return(list(BOLD=BOLD, Q2=0))
-    } else {
-      return(BOLD)
-    }
-  }
 
   # i. PERFORM DUAL REGRESSION TO GET INITIAL ESTIMATE OF TEMPLATE ICS
   if (is.null(DR)) { DR <- dual_reg(BOLD, prior_mean) }
