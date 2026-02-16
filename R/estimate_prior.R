@@ -749,7 +749,7 @@ estimate_prior <- function(
       cluster <- parallel::makeCluster(nCores, outfile="")
       doParallel::registerDoParallel(cluster)
       parallel::clusterEvalQ(cluster, {
-        .libPaths(sys.getenv("R_LIBS_USER"))
+        .libPaths(Sys.getenv("R_LIBS_USER"))
       })
     }
   }
