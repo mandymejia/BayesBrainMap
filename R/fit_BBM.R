@@ -1109,8 +1109,8 @@ fit_BBM <- function(
 
     #no parallelization implemented for VB1
     if(method_FC=='VB1') {
+      if (usePar) { doParallel::stopImplicitCluster() }
       usePar <- FALSE
-      doParallel::stopImplicitCluster()
     }
 
     result <- VB_FC_BBM(
