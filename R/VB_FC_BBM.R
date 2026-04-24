@@ -663,7 +663,7 @@ update_A_Chol <- function(mu_tau2, mu_S, E_SSt,
 
     } #end loop over pivots
 
-    if(final) FC_samp <- abind::abind(FC_samp, 3)
+    if(final) FC_samp <- abind::abind(FC_samp, along=3)
 
   } else {
 
