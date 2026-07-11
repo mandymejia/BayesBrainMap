@@ -109,6 +109,7 @@
 #'  regression was skipped due to too many masked data locations.
 #'
 #' @importFrom fMRItools dual_reg
+#' @importFrom matrixStats rowMedians
 #'
 #' @keywords internal
 dual_reg2 <- function(
@@ -314,7 +315,12 @@ dual_reg2 <- function(
 
   # Nuisance regression and scrubbing. -----------------------------------------
   add_to_nuis <- function(x, nuis) {
-    if (is.null(nuis)) { x } else { cbind(x, nuis) }
+    if (is.null(nuis)) {
+      if(is.matrix(x)) {result <- x} else {result <- as.matrix(x, ncol=1)}
+    } else {
+      result <- cbind(x, nuis)
+    }
+    return(result)
   }
 
   nmat <- NULL
@@ -357,36 +363,29 @@ dual_reg2 <- function(
   }
 
   if (!is.null(scrub)) {
-    if (retest) {
-      if (length(scrub[[1]]) > 0) {
-        if (drop_first > 0) {
-          scrub[[1]] <- scrub[[1]][scrub[[1]] > drop_first] - drop_first
-        }
-        if (length(scrub[[1]]) > 0) {
-          scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub[[1]], nT_pre)
-          nmat <- add_to_nuis(scrub_mat, nmat)
-        }
+
+    if (retest) { scrub1 <- scrub[[1]] } else {scrub1 <- scrub}
+
+    #set up spike regressors and drop first
+    if (length(scrub1) > 0) {
+      if (drop_first > 0) {
+        scrub1 <- scrub1[scrub1 > drop_first] - drop_first
       }
+      scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub1, nT_pre)
+      nmat <- add_to_nuis(scrub_mat, nmat)
+    }
+    #do the same thing for retest scans
+    if (retest) {
       if (length(scrub[[2]]) > 0) {
         if (drop_first > 0) {
           scrub[[2]] <- scrub[[2]][scrub[[2]] > drop_first] - drop_first
         }
-        if (length(scrub[[2]]) > 0) {
-          scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub[[2]], nT_pre2)
-          nmat2 <- add_to_nuis(scrub_mat, nmat2)
-        }
-      }
-    } else {
-      if (length(scrub) > 0) {
-        if (drop_first > 0) {
-          scrub <- scrub[scrub > drop_first] - drop_first
-        }
-        if (length(scrub) > 0) {
-          scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub, nT_pre)
-          nmat <- add_to_nuis(scrub_mat, nmat)
-        }
+        scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub[[2]], nT_pre2)
+        nmat2 <- add_to_nuis(scrub_mat, nmat2)
       }
     }
+  } else {
+    scrub1 <- NULL
   }
 
   ## DCT
@@ -402,20 +401,47 @@ dual_reg2 <- function(
     }
   }
 
-  ## Perform nuisance regression, and drop scrubbed volumes, if applicable. ----
-  if (!is.null(nmat)) {
-    nmat <- add_to_nuis(1, nmat)
-    BOLD <- nuisance_regression(BOLD, nmat)
-    if (retest) {
-      if (length(scrub[[1]]) > 0) { BOLD <- BOLD[,-scrub[[1]],drop=FALSE] }
-    } else {
-      if (length(scrub) > 0) { BOLD <- BOLD[,-scrub,drop=FALSE] }
+  #[TO DO]: delete this chunk if we use intercept as in next chunk instead
+  #[TO DO]: remove rowMedians import at top of function if this chunk is deleted
+  ## Compute median image for scaling within norm_BOLD
+  mu <- mu2 <- rep(1, nrow(BOLD))
+  if (scale != 'none') {
+    #compute median at each location, excluding scrubbed volumes if applicable
+    mu <- rowMedians(BOLD) #if no scrubbing
+    if (length(scrub1) > 0) { mu <- rowMedians(BOLD[,-scrub1,drop=FALSE]) } #override if scrubbing
+    # Do the same thing for retest scans
+    if(retest){
+      mu2 <- rowMedians(BOLD)
+      if (length(scrub[[2]]) > 0) { mu2 <- rowMedians(BOLD2[,-scrub[[2]],drop=FALSE]) }
     }
   }
-  if (retest && !is.null(nmat2)) {
-    nmat2 <- add_to_nuis(1, nmat2)
+
+
+  ## Perform nuisance regression, and drop scrubbed volumes, if applicable. ----
+  ones <- rep(1, nT)
+  nmat <- add_to_nuis(ones, nmat) #add intercept
+
+  #[TO DO]: check that mu_NR similar to mu, and if so use this instead
+  mu_NR <- (solve(crossprod(nmat)) %*% t(nmat) %*% t(BOLD))[1,]
+  print(cor(mu, mu_NR))
+  print(summary(mu))
+  print(summary(mu_NR))
+
+  BOLD <- nuisance_regression(BOLD, nmat)
+  if (length(scrub1) > 0) { BOLD <- BOLD[,-scrub1,drop=FALSE] }
+
+  #[TO DO]: use mu2_NR in place of mu2 if we are going with the intercept
+  if (retest) {
+    nmat2 <- add_to_nuis(ones, nmat2)
+    mu2_NR <- (solve(crossprod(nmat2)) %*% t(nmat2) %*% t(BOLD2))[1,] #[TO DO]: check that similar to mu2, and if so use this instead
     BOLD2 <- nuisance_regression(BOLD2, nmat2)
     if (length(scrub[[2]]) > 0) { BOLD2 <- BOLD2[,-scrub[[2]],drop=FALSE]}
+  }
+
+  #check that mu for scaling is valid (all locations positive and not close to zero)
+  if (scale != 'none') {
+    if(any(mu < 0) | any(abs(mu) < 1e-8)) stop("Some locations have zero or negative means. Set scale = 'none' or provide non-centered data.")
+    if(any(mu2 < 0) | any(abs(mu2) < 1e-8)) stop("Some locations have zero or negative means. Set scale = 'none' or provide non-centered data.")
   }
 
   hpf <- 0 # Done already!
@@ -429,10 +455,10 @@ dual_reg2 <- function(
   }
 
   # Helper functions
-  this_norm_BOLD <- function(B){ norm_BOLD(
+  this_norm_BOLD <- function(B, m){ norm_BOLD(
     B, center_rows=TRUE, center_cols=GSR,
     scale=scale, scale_sm_xifti=xii1, scale_sm_FWHM=scale_sm_FWHM,
-    hpf=hpf, TR=TR
+    hpf=hpf, TR=TR, mu=m
   ) }
 
   DR_FUN <- if (template_parc) {
@@ -440,12 +466,6 @@ dual_reg2 <- function(
   } else {
     function(template, parc_vals, ...) { fMRItools::dual_reg(GICA=template, ...) }
   }
-
-  dual_reg_yesNorm <- function(B){ DR_FUN(
-    B, template=template, parc_vals=template_parc_table$Key,
-    scale=scale, scale_sm_xifti=xii1, scale_sm_FWHM=scale_sm_FWHM,
-    hpf=hpf, TR=TR, GSR=GSR
-  ) }
 
   dual_reg_noNorm <- function(B){ DR_FUN(
     B, template=template, parc_vals=template_parc_table$Key,
@@ -458,15 +478,15 @@ dual_reg2 <- function(
   if (!retest) {
     part1 <- seq(round(nT/2))
     part2 <- setdiff(seq(nT), part1)
-    BOLDh1 <- this_norm_BOLD(BOLD[, part1, drop=FALSE])
-    BOLDh2 <- this_norm_BOLD(BOLD[, part2, drop=FALSE])
+    BOLDh1 <- this_norm_BOLD(BOLD[, part1, drop=FALSE], mu) #first half of data
+    BOLDh2 <- this_norm_BOLD(BOLD[, part2, drop=FALSE], mu) #second half of data
+    # (No need to normalize again.)
     out$test <- dual_reg_noNorm(BOLDh1)
-    #out$test2 <- dual_reg_yesNorm(BOLD[, part1, drop=FALSE]) # yes, is the same.
     out$retest <- dual_reg_noNorm(BOLDh2)
   } else {
     # If retest, normalize `BOLD` and `BOLD2`, and then compute DR.
-    BOLD <- this_norm_BOLD(BOLD)
-    BOLD2 <- this_norm_BOLD(BOLD2)
+    BOLD <- this_norm_BOLD(BOLD, mu)
+    BOLD2 <- this_norm_BOLD(BOLD2, mu2)
     # (No need to normalize again.)
     out$test <- dual_reg_noNorm(BOLD)
     out$retest <- dual_reg_noNorm(BOLD2)
@@ -508,7 +528,7 @@ dual_reg2 <- function(
   # and then halve it after.
   if (!retest) {
     BOLD <- this_norm_BOLD(BOLD) # hasn't been done yet
-    BOLD_DR <- dual_reg_noNorm(BOLD)
+    BOLD_DR <- dual_reg_noNorm(BOLD, mu)
     BOLD <- rm_nuisIC(BOLD, DR=BOLD_DR, Q2=Q2, Q2_max=Q2_max, verbose=verbose)
     rm(BOLD_DR)
     BOLD2 <- BOLD[, part2, drop=FALSE]
@@ -538,9 +558,9 @@ dual_reg2 <- function(
   BOLDss$retest_preclean <- BOLDss$retest
 
   out$test_preclean <- out$test
-  out$test <- dual_reg_noNorm(BOLD)
+  out$test <- dual_reg_noNorm(BOLD, mu)
   out$retest_preclean <- out$retest
-  out$retest <- dual_reg_noNorm(BOLD2)
+  out$retest <- dual_reg_noNorm(BOLD2, mu2)
 
   for (sess in c("test", "retest", "test_preclean", "retest_preclean")) {
     out[[sess]]$sigma_sq <- colSums((out[[sess]]$A %*% out[[sess]]$S - t(BOLDss[[sess]]))^2)/nT # part inside colSums() is TxV

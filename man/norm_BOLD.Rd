@@ -13,7 +13,8 @@ norm_BOLD(
   scale_sm_FWHM = 2,
   scale_sm_xifti_mask = NULL,
   hpf = 0,
-  TR = NULL
+  TR = NULL,
+  mu = NULL
 )
 }
 \arguments{
@@ -24,9 +25,9 @@ location's time series) or columns (each time point's image)? Default:
 \code{TRUE} for row centering, and \code{FALSE} for column centering.}
 
 \item{scale}{\code{"local"} (default), \code{"global"}, or \code{"none"}.
-Local scaling will divide each data location's time series by its estimated
-standard deviation. Global scaling will divide the entire data matrix by the
-mean image standard deviation (\code{mean(sqrt(rowVars(BOLD)))}).}
+Local scaling will divide each data location's time series by its mean,
+after centering. Global scaling will divide the entire data matrix by the
+overall mean. Note: If input data has already been centered, must set scale = "none".}
 
 \item{scale_sm_xifti, scale_sm_FWHM}{Only applies if \code{scale=="local"} and
 \code{BOLD} represents CIFTI-format data. To smooth the standard deviation
@@ -52,6 +53,8 @@ Note the \code{TR} argument is required for highpass filtering. If
 
 \item{TR}{The temporal resolution of the data, i.e. the time between volumes,
 in seconds. \code{TR} is required for detrending with \code{hpf}.}
+
+\item{mu}{Pre-computed image or scalar of average BOLD value for scaling}
 }
 \value{
 Normalized BOLD data matrix (\eqn{V \times T})

@@ -63,9 +63,9 @@ size as the fMRI data, with \code{TRUE} corresponding to in-mask voxels.}
 \strong{S} matrices (default)?}
 
 \item{scale}{\code{"local"} (default), \code{"global"}, or \code{"none"}.
-Local scaling will divide each data location's time series by its estimated
-standard deviation. Global scaling will divide the entire data matrix by the
-mean image standard deviation (\code{mean(sqrt(rowVars(BOLD)))}).}
+Local scaling will divide each data location's time series by its mean,
+after centering. Global scaling will divide the entire data matrix by the
+overall mean. Note: If input data has already been centered, must set scale = "none".}
 
 \item{scale_sm_surfL, scale_sm_surfR, scale_sm_FWHM}{Only applies if
 \code{scale=="local"} and \code{BOLD} represents CIFTI-format data. To

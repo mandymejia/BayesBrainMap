@@ -171,18 +171,18 @@ prior to dual regression would leave unmodelled signals in the data, which
 could bias the priors.}
 
 \item{scale}{\code{"local"} (default), \code{"global"}, or \code{"none"}.
-Local scaling will divide each data location's time series by its estimated
-standard deviation. Global scaling will divide the entire data matrix by the
-mean image standard deviation (\code{mean(sqrt(rowVars(BOLD)))}).}
+Local scaling will divide each data location's time series by its mean,
+after centering. Global scaling will divide the entire data matrix by the
+overall mean. Note: If input data has already been centered, must set scale = "none".}
 
 \item{scale_sm_surfL, scale_sm_surfR, scale_sm_FWHM}{Only applies if
 \code{scale=="local"} and \code{BOLD} represents surface data (CIFTI or
-GIFTI). To smooth the standard deviation estimates used for local scaling,
+GIFTI). To smooth the mean estimates used for local scaling,
 provide the surface geometries along which to smooth as GIFTI geometry files
 or \code{"surf"} objects, as well as the smoothing FWHM (default: \code{2}).
 
-If \code{scale_sm_FWHM==0}, no smoothing of the local standard deviation
-estimates will be performed.
+If \code{scale_sm_FWHM==0}, no smoothing of the local means
+will be performed.
 
 If \code{scale_sm_FWHM>0} but \code{scale_sm_surfL} and
 \code{scale_sm_surfR} are not provided, the default inflated surfaces from
@@ -355,7 +355,7 @@ nQ <- 6
 mU <- matrix(rnorm(nV*nQ), nrow=nV)
 mS <- mU \%*\% diag(seq(nQ, 1)) \%*\% matrix(rnorm(nQ*nT), nrow=nQ)
 BOLD <- list(B1=mS, B2=mS, B3=mS)
-BOLD <- lapply(BOLD, function(x){x + rnorm(nV*nT, sd=.05)})
+BOLD <- lapply(BOLD, function(x){x + rnorm(nV*nT, mean = 100, sd=.05)})
 template <- mU
 estimate_prior(BOLD=BOLD, template=mU, FC_nSamp=2000, usePar=FALSE)
 

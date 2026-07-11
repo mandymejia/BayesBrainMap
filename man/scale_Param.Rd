@@ -5,9 +5,9 @@
 \title{scale}
 \arguments{
 \item{scale}{\code{"local"} (default), \code{"global"}, or \code{"none"}.
-Local scaling will divide each data location's time series by its estimated
-standard deviation. Global scaling will divide the entire data matrix by the
-mean image standard deviation (\code{mean(sqrt(rowVars(BOLD)))}).}
+Local scaling will divide each data location's time series by its mean,
+after centering. Global scaling will divide the entire data matrix by the
+overall mean. Note: If input data has already been centered, must set scale = "none".}
 }
 \description{
 scale

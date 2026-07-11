@@ -20,6 +20,7 @@
 #'  provide the mask here.
 #' @inheritParams TR_param
 #' @inheritParams hpf_param
+#' @param mu Pre-computed image or scalar of average BOLD value for scaling
 #'
 #' @return Normalized BOLD data matrix (\eqn{V \times T})
 #'
@@ -31,7 +32,7 @@ norm_BOLD <- function(
   BOLD, center_rows=TRUE, center_cols=FALSE,
   scale=c("local", "global", "none"), scale_sm_xifti=NULL, scale_sm_FWHM=2,
   scale_sm_xifti_mask=NULL,
-  hpf=0, TR=NULL){
+  hpf=0, TR=NULL, mu=NULL){
 
   nT <- ncol(BOLD)
   nV <- nrow(BOLD)
@@ -106,27 +107,21 @@ norm_BOLD <- function(
   }
 
   # Scale.
-  # Get scale at each location.
-  if (scale != "none") { sig <- sqrt(rowVars(BOLD, na.rm=TRUE)) }
-  # Global scaling: take mean scale across all locations, and use that.
+  # Global scaling: take mean across all locations, and use that.
   if (scale == "global") {
-    sig <- mean(sig, na.rm=TRUE)
-    if (sig < 1e-8) {
-      warning("Estimated scale is near zero. Skipping scaling.")
-    } else {
-      # Apply global scaling.
-      BOLD <- BOLD / sig
-    }
-  # Local scaling: use estimate of scale at each location.
+      mu <- mean(mu, na.rm=TRUE)
+      BOLD <- BOLD / mu
+  # Local scaling: use mean at each location, possibly smoothed
   } else if (scale == "local") {
     # Smooth estimates, if applicable.
-    if (!is.null(scale_sm_xifti) && (scale_sm_FWHM != 0)) {
+    do_smooth <- (!is.null(scale_sm_xifti) && (scale_sm_FWHM != 0))
+    if (do_smooth) {
       # Check `scale_sm_xifti` is valid.
       is_masked <- !is.null(scale_sm_xifti_mask)
       # Un-mask, if applicable.
       if (is_masked) {
-        sig <- c(unmask_mat(as.matrix(sig), scale_sm_xifti_mask))
-        nV <- length(sig)
+        mu <- c(unmask_mat(as.matrix(mu), scale_sm_xifti_mask))
+        nV <- length(mu)
       }
       if (nV != nrow(scale_sm_xifti)) {
         stop("`scale_sm_xifti` not compatible with `BOLD`: different spatial dimensions.")
@@ -134,15 +129,15 @@ norm_BOLD <- function(
       if (!is.null(scale_sm_xifti$meta$cifti$intent) && scale_sm_xifti$meta$cifti$intent == 3007) {
         scale_sm_xifti <- ciftiTools::convert_xifti(scale_sm_xifti, "dscalar")
       }
-      # Compute and smooth the SD.
-      sig <- ciftiTools::newdata_xifti(ciftiTools::select_xifti(scale_sm_xifti, 1), sig)
-      sig <- ciftiTools::move_to_mwall(sig, NA)
-      sig_mask <- do.call(c, sig$meta$cortex$medial_wall_mask)
-      sig <- ciftiTools::smooth_xifti(sig, surf_FWHM=scale_sm_FWHM, vol_FWHM=scale_sm_FWHM)
-      sig <- c(as.matrix(sig))
+      # Compute and smooth the mean
+      mu <- ciftiTools::newdata_xifti(ciftiTools::select_xifti(scale_sm_xifti, 1), mu)
+      mu <- ciftiTools::move_to_mwall(mu, NA)
+      mu_mask <- do.call(c, mu$meta$cortex$medial_wall_mask)
+      mu <- ciftiTools::smooth_xifti(mu, surf_FWHM=scale_sm_FWHM, vol_FWHM=scale_sm_FWHM)
+      mu <- c(as.matrix(mu))
     }
     # Apply local scaling.
-    BOLD <- BOLD / sig
+    BOLD <- BOLD / mu
   }
 
   BOLD
