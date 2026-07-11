@@ -16,7 +16,7 @@ estimate_prior(
   scale = c("local", "global", "none"),
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  scale_sm_FWHM = 2,
+  scale_sm_FWHM = 4,
   nuisance = NULL,
   scrub = NULL,
   drop_first = 0,
@@ -50,7 +50,7 @@ estimate_prior.cifti(
   scale = c("local", "global", "none"),
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  scale_sm_FWHM = 2,
+  scale_sm_FWHM = 4,
   nuisance = NULL,
   scrub = NULL,
   drop_first = 0,
@@ -80,7 +80,7 @@ estimate_prior.gifti(
   scale = c("local", "global", "none"),
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  scale_sm_FWHM = 2,
+  scale_sm_FWHM = 4,
   nuisance = NULL,
   scrub = NULL,
   drop_first = 0,
@@ -181,8 +181,7 @@ GIFTI). To smooth the mean estimates used for local scaling,
 provide the surface geometries along which to smooth as GIFTI geometry files
 or \code{"surf"} objects, as well as the smoothing FWHM (default: \code{2}).
 
-If \code{scale_sm_FWHM==0}, no smoothing of the local means
-will be performed.
+If \code{scale_sm_FWHM==0}, no smoothing of the local means will be performed.
 
 If \code{scale_sm_FWHM>0} but \code{scale_sm_surfL} and
 \code{scale_sm_surfR} are not provided, the default inflated surfaces from

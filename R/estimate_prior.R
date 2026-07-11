@@ -444,8 +444,7 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #'  provide the surface geometries along which to smooth as GIFTI geometry files
 #'  or \code{"surf"} objects, as well as the smoothing FWHM (default: \code{2}).
 #'
-#'  If \code{scale_sm_FWHM==0}, no smoothing of the local means
-#'   will be performed.
+#'  If \code{scale_sm_FWHM==0}, no smoothing of the local means will be performed.
 #'
 #'  If \code{scale_sm_FWHM>0} but \code{scale_sm_surfL} and
 #'  \code{scale_sm_surfR} are not provided, the default inflated surfaces from
@@ -614,7 +613,7 @@ estimate_prior <- function(
   scale=c("local", "global", "none"),
   scale_sm_surfL=NULL,
   scale_sm_surfR=NULL,
-  scale_sm_FWHM=2,
+  scale_sm_FWHM=4,
   nuisance=NULL,
   scrub=NULL,
   drop_first=0,
@@ -804,17 +803,13 @@ estimate_prior <- function(
 
   # Check `scale_sm_FWHM`
   if (scale_sm_FWHM !=0 && FORMAT %in% c("NIFTI", "MATRIX")) {
-    if (scale_sm_FWHM==2) {
-      message("Setting `scale_sm_FWHM == 0`.\n")
-    } else {
-      if (FORMAT == "NIFTI") {
-        # [TO DO] make this available
-        warning( "Setting `scale_sm_FWHM == 0` (Scale smoothing not available for volumetric data.).\n")
-      } else {
-        warning( "Setting `scale_sm_FWHM == 0` (Scale smoothing not available for data matrices: use CIFTI/GIFTI files.).\n")
-      }
-    }
     scale_sm_FWHM <- 0
+    if (FORMAT == "NIFTI") {
+      # [TO DO] make this available
+      warning( "Setting `scale_sm_FWHM == 0` (Scale smoothing not yet available for volumetric data. Contact developer.).\n")
+    } else {
+      warning( "Setting `scale_sm_FWHM == 0` (Scale smoothing not available for data matrices: use CIFTI/GIFTI files.).\n")
+    }
   }
 
   if (!is.null(nuisance)) {
@@ -1444,7 +1439,7 @@ estimate_prior.cifti <- function(
   BOLD, BOLD2=NULL,
   template, inds=NULL,
   scale=c("local", "global", "none"),
-  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=2,
+  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=4,
   nuisance=NULL,
   scrub=NULL,
   drop_first=0,
@@ -1482,7 +1477,7 @@ estimate_prior.gifti <- function(
   BOLD, BOLD2=NULL,
   template, inds=NULL,
   scale=c("local", "global", "none"),
-  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=2,
+  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=4,
   nuisance=NULL,
   scrub=NULL,
   drop_first=0,

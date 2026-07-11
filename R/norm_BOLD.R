@@ -30,9 +30,8 @@
 #'
 norm_BOLD <- function(
   BOLD, center_rows=TRUE, center_cols=FALSE,
-  scale=c("local", "global", "none"), scale_sm_xifti=NULL, scale_sm_FWHM=2,
-  scale_sm_xifti_mask=NULL,
-  hpf=0, TR=NULL, mu=NULL){
+  scale=c("local", "global", "none"), scale_sm_xifti=NULL, scale_sm_FWHM=4,
+  scale_sm_xifti_mask=NULL, hpf=0, TR=NULL, mu=NULL){
 
   nT <- ncol(BOLD)
   nV <- nrow(BOLD)

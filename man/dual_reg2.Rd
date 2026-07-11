@@ -15,7 +15,7 @@ dual_reg2(
   scale = c("local", "global", "none"),
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  scale_sm_FWHM = 2,
+  scale_sm_FWHM = 4,
   nuisance = NULL,
   scrub = NULL,
   drop_first = 0,
