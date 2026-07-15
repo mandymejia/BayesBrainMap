@@ -109,7 +109,6 @@
 #'  regression was skipped due to too many masked data locations.
 #'
 #' @importFrom fMRItools dual_reg
-#' @importFrom matrixStats rowMedians
 #'
 #' @keywords internal
 dual_reg2 <- function(
@@ -167,7 +166,7 @@ dual_reg2 <- function(
     if (is.character(BOLD)) { BOLD <- ciftiTools::read_cifti(BOLD, brainstructures=brainstructures, resamp_res=resamp_res) }
     if (ciftiTools::is.xifti(BOLD)) {
       if (scale == "local") {
-        xii1 <- ciftiTools::convert_xifti(ciftiTools::select_xifti(BOLD, 1), "dscalar") * 0
+        xii1 <- ciftiTools::convert_xifti(ciftiTools::select_xifti(BOLD, 1), "dscalar") * 0 # Extract surface and mwall from input xifti for scale smoothing
       }
       BOLD <- as.matrix(BOLD)
     }
@@ -401,39 +400,20 @@ dual_reg2 <- function(
     }
   }
 
-  #[TO DO]: delete this chunk if we use intercept as in next chunk instead
-  #[TO DO]: remove rowMedians import at top of function if this chunk is deleted
-  ## Compute median image for scaling within norm_BOLD
-  mu <- mu2 <- rep(1, nrow(BOLD))
-  if (scale != 'none') {
-    #compute median at each location, excluding scrubbed volumes if applicable
-    mu <- rowMedians(BOLD) #if no scrubbing
-    if (length(scrub1) > 0) { mu <- rowMedians(BOLD[,-scrub1,drop=FALSE]) } #override if scrubbing
-    # Do the same thing for retest scans
-    if(retest){
-      mu2 <- rowMedians(BOLD)
-      if (length(scrub[[2]]) > 0) { mu2 <- rowMedians(BOLD2[,-scrub[[2]],drop=FALSE]) }
-    }
-  }
-
-
   ## Perform nuisance regression, and drop scrubbed volumes, if applicable. ----
   ones <- rep(1, nT)
   nmat <- add_to_nuis(ones, nmat) #add intercept
 
-  #[TO DO]: check that mu_NR similar to mu, and if so use this instead
-  mu_NR <- (solve(crossprod(nmat)) %*% t(nmat) %*% t(BOLD))[1,]
-  print(cor(mu, mu_NR))
-  print(summary(mu))
-  print(summary(mu_NR))
+  # Calculate mu as the intercept from nuisance regression. 
+  mu <- (solve(crossprod(nmat)) %*% t(nmat) %*% t(BOLD))[1,]
+
 
   BOLD <- nuisance_regression(BOLD, nmat)
   if (length(scrub1) > 0) { BOLD <- BOLD[,-scrub1,drop=FALSE] }
 
-  #[TO DO]: use mu2_NR in place of mu2 if we are going with the intercept
   if (retest) {
     nmat2 <- add_to_nuis(ones, nmat2)
-    mu2_NR <- (solve(crossprod(nmat2)) %*% t(nmat2) %*% t(BOLD2))[1,] #[TO DO]: check that similar to mu2, and if so use this instead
+    mu2 <- (solve(crossprod(nmat2)) %*% t(nmat2) %*% t(BOLD2))[1,] # mu2 calculated as intercept of nuissance regression 
     BOLD2 <- nuisance_regression(BOLD2, nmat2)
     if (length(scrub[[2]]) > 0) { BOLD2 <- BOLD2[,-scrub[[2]],drop=FALSE]}
   }
