@@ -875,12 +875,15 @@ fit_BBM <- function(
   }
 
   nmat <- vector("list", nN)
+  mu <- vector("list", nN)
   nDCT <- if (hpf==0) { NULL } else { vector("numeric", nN) } # could return this
   nT_pre <- nT
   for (nn in seq(nN)) {
     if (verbose && nN > 1) { cat(paste0("Session ", nn, ":")) }
     # Collect nuisance matrix columns.
     nmat[nn] <- list(NULL)
+    # Collect means for each column
+    mu[nn] <- list(NULL)
     ## `nuisance`
     nuisance_nn <- if (is.list(nuisance)) { nuisance[[nn]] } else { nuisance }
     if (!is.null(nuisance_nn)) {
@@ -919,12 +922,20 @@ fit_BBM <- function(
       if (verbose) { cat("Using", nDCT[nn], "DCT bases.\n") }
       nmat[[nn]] <- add_to_nuis(dct_bases(nT[nn], nDCT[nn]), nmat[[nn]])
     }
+
     # Perform nuisance regression, if applicable.
     if (!is.null(nmat[[nn]])) {
       nmat[[nn]] <- cbind(1, nmat[[nn]])
+      
+      # Calculate mu as the intercept from nuisance regression. 
+      mu[[nn]] <- (solve(crossprod(nmat[[nn]])) %*% t(nmat[[nn]]) %*% t(BOLD[[nn]]))[1,]
+      
       if (verbose && nN > 1) { cat("\t") }
       if (verbose) { cat("Doing nuisance regression with", ncol(nmat[[nn]]), "total regressors.\n") }
       BOLD[[nn]] <- nuisance_regression(BOLD[[nn]], nmat[[nn]])
+    } else {
+      # If no nuisance regression: mu is calculated as the mean
+      mu[[nn]] <- rowMeans(BOLD[[nn]])
     }
     # Drop scrubbed volumes, if applicable.
     if (!is.null(scrub_nn)) {
@@ -954,12 +965,18 @@ fit_BBM <- function(
   }
 
   mask2and3 <- if (use_mask2) { mask2 } else { mask3 } # [TO DO] patch???
-
-  BOLD <- lapply(BOLD, norm_BOLD,
-    center_rows=TRUE, center_cols=GSR,
-    scale=scale, scale_sm_xifti=xii1, scale_sm_FWHM=scale_sm_FWHM,
-    scale_sm_xifti_mask=mask2and3,
-    hpf=0
+  
+  #[TO DO] Need to handle mu when nuissance regression is skipped. Otherwise, norm_BOLD will not fail but make BOLD == NULL
+  
+  BOLD <- Map(
+    function(B, m) norm_BOLD(
+      B,
+      center_rows = TRUE, center_cols = GSR,
+      scale = scale, scale_sm_xifti = xii1, scale_sm_FWHM = scale_sm_FWHM,
+      scale_sm_xifti_mask = mask2and3,
+      hpf = 0, mu = m
+    ),
+    BOLD, mu
   )
 
   ## Estimate and subtract nuisance ICs ----------------------------------------
