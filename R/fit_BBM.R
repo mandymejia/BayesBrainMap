@@ -870,8 +870,14 @@ fit_BBM <- function(
   if (verbose) { cat("\n") }
   if (verbose) { cat("Pre-processing BOLD data.\n") }
 
+  # Nuisance regression and scrubbing. -----------------------------------------
   add_to_nuis <- function(x, nuis) {
-    if (is.null(nuis)) { x } else { cbind(x, nuis) }
+    if (is.null(nuis)) {
+      if(is.matrix(x)) {result <- x} else {result <- as.matrix(x, ncol=1)}
+    } else {
+      result <- cbind(x, nuis)
+    }
+    return(result)
   }
 
   nmat <- vector("list", nN)
@@ -923,20 +929,18 @@ fit_BBM <- function(
       nmat[[nn]] <- add_to_nuis(dct_bases(nT[nn], nDCT[nn]), nmat[[nn]])
     }
 
-    # Perform nuisance regression, if applicable.
-    if (!is.null(nmat[[nn]])) {
-      nmat[[nn]] <- cbind(1, nmat[[nn]])
-      
-      # Calculate mu as the intercept from nuisance regression. 
-      mu[[nn]] <- (solve(crossprod(nmat[[nn]])) %*% t(nmat[[nn]]) %*% t(BOLD[[nn]]))[1,]
-      
-      if (verbose && nN > 1) { cat("\t") }
-      if (verbose) { cat("Doing nuisance regression with", ncol(nmat[[nn]]), "total regressors.\n") }
-      BOLD[[nn]] <- nuisance_regression(BOLD[[nn]], nmat[[nn]])
-    } else {
-      # If no nuisance regression: mu is calculated as the mean
-      mu[[nn]] <- rowMeans(BOLD[[nn]])
-    }
+
+    ## Perform nuisance regression, and drop scrubbed volumes, if applicable. ----
+    ones <- rep(1, nT)
+    nmat[[nn]] <- add_to_nuis(ones, nmat[[nn]]) #add intercept
+    
+    # Calculate mu as the intercept from nuisance regression. 
+    mu[[nn]] <- (solve(crossprod(nmat[[nn]])) %*% t(nmat[[nn]]) %*% t(BOLD[[nn]]))[1,]
+    
+    if (verbose && nN > 1) { cat("\t") }
+    if (verbose) { cat("Doing nuisance regression with", ncol(nmat[[nn]]), "total regressors.\n") }
+    BOLD[[nn]] <- nuisance_regression(BOLD[[nn]], nmat[[nn]])
+    
     # Drop scrubbed volumes, if applicable.
     if (!is.null(scrub_nn)) {
       BOLD[[nn]] <- BOLD[[nn]][,-scrub_nn,drop=FALSE]
@@ -965,8 +969,6 @@ fit_BBM <- function(
   }
 
   mask2and3 <- if (use_mask2) { mask2 } else { mask3 } # [TO DO] patch???
-  
-  #[TO DO] Need to handle mu when nuissance regression is skipped. Otherwise, norm_BOLD will not fail but make BOLD == NULL
   
   BOLD <- Map(
     function(B, m) norm_BOLD(
