@@ -135,8 +135,8 @@ norm_BOLD <- function(
       mu <- ciftiTools::smooth_xifti(mu, surf_FWHM=scale_sm_FWHM, vol_FWHM=scale_sm_FWHM)
       mu <- c(as.matrix(mu))
     }
-    # Apply local scaling.
-    BOLD <- BOLD / mu
+    # Apply local scaling. Multiply by a 100 to make it "percent change of signal".
+    BOLD <- 100 * BOLD / mu
   }
 
   BOLD

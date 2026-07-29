@@ -18,7 +18,7 @@
 #'  There are two version of the variance prior: \code{varUB} gives the
 #'  unbiased variance estimate, and \code{varNN} gives the upwardly-biased
 #'  non-negative variance estimate. Values in \code{varUB} will need to be
-#'  clamped above zero before using in \code{\link{fit_BBM}}.
+#'  clamped above zero before using in \code{BrainMap}.
 #'
 #' @importFrom fMRItools var_decomp
 #' @keywords internal
@@ -440,11 +440,12 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #' @inheritParams scale_Param
 #' @param scale_sm_surfL,scale_sm_surfR,scale_sm_FWHM Only applies if
 #'  \code{scale=="local"} and \code{BOLD} represents surface data (CIFTI or
-#'  GIFTI). To smooth the mean estimates used for local scaling,
+#'  GIFTI). To smooth the standard deviation estimates used for local scaling,
 #'  provide the surface geometries along which to smooth as GIFTI geometry files
 #'  or \code{"surf"} objects, as well as the smoothing FWHM (default: \code{2}).
 #'
-#'  If \code{scale_sm_FWHM==0}, no smoothing of the local means will be performed.
+#'  If \code{scale_sm_FWHM==0}, no smoothing of the local standard deviation
+#'  estimates will be performed.
 #'
 #'  If \code{scale_sm_FWHM>0} but \code{scale_sm_surfL} and
 #'  \code{scale_sm_surfR} are not provided, the default inflated surfaces from
@@ -593,7 +594,7 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #' mU <- matrix(rnorm(nV*nQ), nrow=nV)
 #' mS <- mU %*% diag(seq(nQ, 1)) %*% matrix(rnorm(nQ*nT), nrow=nQ)
 #' BOLD <- list(B1=mS, B2=mS, B3=mS)
-#' BOLD <- lapply(BOLD, function(x){x + rnorm(nV*nT, mean = 100, sd=.05)})
+#' BOLD <- lapply(BOLD, function(x){x + rnorm(nV*nT, sd=.05)})
 #' template <- mU
 #' estimate_prior(BOLD=BOLD, template=mU, FC_nSamp=2000, usePar=FALSE)
 #'
@@ -613,7 +614,7 @@ estimate_prior <- function(
   scale=c("local", "global", "none"),
   scale_sm_surfL=NULL,
   scale_sm_surfR=NULL,
-  scale_sm_FWHM=4,
+  scale_sm_FWHM=2,
   nuisance=NULL,
   scrub=NULL,
   drop_first=0,
@@ -746,6 +747,8 @@ estimate_prior <- function(
       usePar <- FALSE
     } else {
       cluster <- parallel::makeCluster(nCores, outfile="")
+      # bug fix: take user libraries into each worker 
+      parallel::clusterEvalQ(cluster, .libPaths(Sys.getenv("R_LIBS_USER")))
       doParallel::registerDoParallel(cluster)
     }
   }
@@ -803,13 +806,17 @@ estimate_prior <- function(
 
   # Check `scale_sm_FWHM`
   if (scale_sm_FWHM !=0 && FORMAT %in% c("NIFTI", "MATRIX")) {
-    scale_sm_FWHM <- 0
-    if (FORMAT == "NIFTI") {
-      # [TO DO] make this available
-      warning( "Setting `scale_sm_FWHM == 0` (Scale smoothing not yet available for volumetric data. Contact developer.).\n")
+    if (scale_sm_FWHM==2) {
+      message("Setting `scale_sm_FWHM == 0`.\n")
     } else {
-      warning( "Setting `scale_sm_FWHM == 0` (Scale smoothing not available for data matrices: use CIFTI/GIFTI files.).\n")
+      if (FORMAT == "NIFTI") {
+        # [TO DO] make this available
+        warning( "Setting `scale_sm_FWHM == 0` (Scale smoothing not available for volumetric data.).\n")
+      } else {
+        warning( "Setting `scale_sm_FWHM == 0` (Scale smoothing not available for data matrices: use CIFTI/GIFTI files.).\n")
+      }
     }
+    scale_sm_FWHM <- 0
   }
 
   if (!is.null(nuisance)) {
@@ -1058,16 +1065,28 @@ estimate_prior <- function(
   if (usePar) {
     check_parallel_packages()
 
-    if (FC_updateA) {
+    if (FC_updateA) { 
       FC_updateA_path <- tempfile(pattern="FC_updateA_", tmpdir=tempdir(check=TRUE))
       dir.create(FC_updateA_path)
     }
 
+
+
+    #cat(paste0("Variable aux_wb_path is now: ", aux_wb_path))
+
     # Loop over subjects.
     `%dopar%` <- foreach::`%dopar%`
+    #cat("#################### Starting modified BayesBrain prior estimation that exports different object aux ########################################")
     q <- foreach::foreach(ii = seq(nN), .packages=c("ciftiTools", "fMRItools", "BayesBrainMap")) %dopar% {
       if (FORMAT=="CIFTI" || FORMAT=="GIFTI") {
         # Load the workbench.
+        # for bug, reset wb_path variable
+        #wb_path = aux_wb_path
+
+        #cat("This message precedes the confimration of wb_path")
+
+        #cat(paste0("Variable aux_wb_path is now: ", aux_wb_path, "\nVariable wb_path is now: ", wb_path))
+
         if (is.null(wb_path)) {
           stop("`wb_path` is required for parallel computation.")
         }
@@ -1160,7 +1179,7 @@ estimate_prior <- function(
       FC0 <- array(NA, dim=c(nM, nN, nL, nL)) # for functional connectivity prior
       #FC0_chol <- array(NA, dim=c(nM, nN, nL*(nL+1)/2))
     }
-    if (FC_updateA) {
+    if (FC_updateA) { 
       FC_updateA_path <- tempfile(pattern="FC_updateA_", tmpdir=tempdir(check=TRUE))
       dir.create(FC_updateA_path)
     }
@@ -1176,8 +1195,7 @@ estimate_prior <- function(
         FC_updateA_path_ii <- file.path(FC_updateA_path, ii)
         dir.create(FC_updateA_path_ii)
       }
-    
-      
+
       DR_ii <- try(dual_reg2(
         BOLD[[ii]], BOLD2=B2,
         format=format,
@@ -1440,7 +1458,7 @@ estimate_prior.cifti <- function(
   BOLD, BOLD2=NULL,
   template, inds=NULL,
   scale=c("local", "global", "none"),
-  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=4,
+  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=2,
   nuisance=NULL,
   scrub=NULL,
   drop_first=0,
@@ -1478,7 +1496,7 @@ estimate_prior.gifti <- function(
   BOLD, BOLD2=NULL,
   template, inds=NULL,
   scale=c("local", "global", "none"),
-  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=4,
+  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=2,
   nuisance=NULL,
   scrub=NULL,
   drop_first=0,

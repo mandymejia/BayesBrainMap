@@ -407,7 +407,6 @@ dual_reg2 <- function(
   # Calculate mu as the intercept from nuisance regression. 
   mu <- (solve(crossprod(nmat)) %*% t(nmat) %*% t(BOLD))[1,]
 
-
   BOLD <- nuisance_regression(BOLD, nmat)
   if (length(scrub1) > 0) { BOLD <- BOLD[,-scrub1,drop=FALSE] }
 
@@ -508,7 +507,7 @@ dual_reg2 <- function(
   # and then halve it after.
   if (!retest) {
     BOLD <- this_norm_BOLD(BOLD) # hasn't been done yet
-    BOLD_DR <- dual_reg_noNorm(BOLD, mu)
+    BOLD_DR <- dual_reg_noNorm(BOLD) # provides initial estimate of networks for full scan
     BOLD <- rm_nuisIC(BOLD, DR=BOLD_DR, Q2=Q2, Q2_max=Q2_max, verbose=verbose)
     rm(BOLD_DR)
     BOLD2 <- BOLD[, part2, drop=FALSE]
@@ -517,10 +516,10 @@ dual_reg2 <- function(
     BOLD <- rm_nuisIC(BOLD, DR=out$test, Q2=Q2, Q2_max=Q2_max, verbose=verbose)
     BOLD2 <- rm_nuisIC(BOLD2, DR=out$retest, Q2=Q2, Q2_max=Q2_max, verbose=verbose)
   }
-
-  # Center and scale `BOLD` and `BOLD2` (again). recall hpf was set to 0. -----
-  BOLD <- this_norm_BOLD(BOLD)
-  BOLD2 <- this_norm_BOLD(BOLD2)
+  
+  # Center `BOLD` and `BOLD2` (again).
+  BOLD <- BOLD - rowMeans(BOLD)
+  BOLD2 <- BOLD2 - rowMeans(BOLD2)
 
   if (!is.null(FC_updateA_path)) {
     BOLDkeep <- list(

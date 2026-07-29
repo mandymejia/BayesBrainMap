@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /mnt/red/quartz/Documents/GitHub/BayesBrainMap log --oneline -20 --all)",
+      "Bash(git -C /mnt/red/quartz/Documents/GitHub/BayesBrainMap branch -a)",
+      "Bash(git config *)",
+      "Bash(git -C /mnt/red/quartz/Documents/GitHub/BayesBrainMap log --oneline -25)",
+      "Bash(git --no-pager diff -- R/norm_BOLD.R)",
+      "Bash(perl -0pi -e 's/scale=c\\\\\\(\"local\", \"global\", \"none\"\\\\\\)/scale=c\\(\"local\", \"global\", \"local_robust\", \"global_robust\", \"none\"\\)/g' R/dual_reg2.R)",
+      "Bash(perl -0pi -e 's/scale <- match\\\\.arg\\\\\\(scale, c\\\\\\(\"local\", \"global\", \"none\"\\\\\\)\\\\\\)/scale <- match.arg\\(scale, c\\(\"local\", \"global\", \"local_robust\", \"global_robust\", \"none\"\\)\\)/g' R/dual_reg2.R)",
+      "Bash(perl -0pi -e 's/scale=c\\\\\\(\"local\", \"global\", \"none\"\\\\\\)/scale=c\\(\"local\", \"global\", \"local_robust\", \"global_robust\", \"none\"\\)/g' R/estimate_prior.R)",
+      "Bash(perl -0pi -e 's/scale <- match\\\\.arg\\\\\\(scale, c\\\\\\(\"local\", \"global\", \"none\"\\\\\\)\\\\\\)/scale <- match.arg\\(scale, c\\(\"local\", \"global\", \"local_robust\", \"global_robust\", \"none\"\\)\\)/g' R/estimate_prior.R)",
+      "Bash(perl -0pi -e 's/scale=c\\\\\\(\"prior\", \"global\", \"local\", \"none\"\\\\\\)/scale=c\\(\"prior\", \"global\", \"local\", \"local_robust\", \"global_robust\", \"none\"\\)/g' R/fit_BBM.R)",
+      "Bash(Rscript -e 'if\\(requireNamespace\\(\"roxygen2\",quietly=TRUE\\)\\){cat\\(\"roxygen2 available\\\\n\"\\)} else {cat\\(\"no roxygen2\\\\n\"\\)}')",
+      "Bash(Rscript -e 'roxygen2::roxygenise\\(\\)')",
+      "Bash(cd *)",
+      "Bash(Rscript toy_norm.R)",
+      "Bash(Rscript -e 'library\\(ciftiTools\\); cat\\(deparse\\(args\\(ciftiTools::add_surf\\)\\), sep=\"\\\\n\"\\)')",
+      "Bash(Rscript -e 'library\\(ciftiTools\\); print\\(head\\(body\\(ciftiTools::add_surf\\), 40\\)\\)')",
+      "Bash(Rscript -e 'library\\(ciftiTools\\); print\\(body\\(ciftiTools::smooth_xifti\\)\\)')",
+      "Bash(Rscript -e 'library\\(ciftiTools\\); print\\(body\\(ciftiTools:::smooth_cifti\\)\\)')",
+      "Bash(Rscript -e 'nT <- c\\(100,120\\); tryCatch\\(print\\(length\\(rep\\(1, nT\\)\\)\\), error=function\\(e\\) cat\\(\"ERROR:\", conditionMessage\\(e\\), \"\\\\n\"\\)\\); nT1 <- c\\(100\\); cat\\(\"single-session length:\", length\\(rep\\(1,nT1\\)\\), \"\\\\n\"\\)')",
+      "Bash(Rscript *)"
+    ]
+  }
+}

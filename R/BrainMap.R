@@ -203,9 +203,9 @@
 #' @examples
 #' \dontrun{
 #'  tm <- estimate_prior(cii1_fnames, cii2_fnames, gICA_fname, usePar=FALSE)
-#'  fit_BBM(newcii_fname, tm, spatial_model=TRUE, resamp_res=2000, usePar=FALSE)
+#'  BrainMap(newcii_fname, tm, spatial_model=TRUE, resamp_res=2000, usePar=FALSE)
 #' }
-fit_BBM <- function(
+BrainMap <- function(
   BOLD, prior,
   var_method=c("non-negative", "unbiased"),
   #tinds=NULL,
@@ -279,14 +279,14 @@ fit_BBM <- function(
     if (is.null(covariates)) {
       stop("These covariates were used during prior estimation: ", 
         paste0(covariate_names, collapse=", "), ". They must also be provided ", 
-        "to `fit_BBM` with the `covariates` argument.")
+        "to `BrainMap` with the `covariates` argument.")
     }
     stopifnot(is.numeric(covariates) && is.vector(covariates))
     stopifnot(length(covariates) == length(covariate_names))
     if(!all(names(covariates) == covariate_names)) {
       stop("These covariates were used during prior estimation: ", 
         paste0(covariate_names, collapse=", "), ". The same covariates must ", 
-        "also be provided to `fit_BBM` with the `covariates` argument. ",
+        "also be provided to `BrainMap` with the `covariates` argument. ",
         "However, the names for `covariates` provided here differ.")
     }
   } else {
@@ -320,7 +320,7 @@ fit_BBM <- function(
   }
   stopifnot(is_1(scale_sm_FWHM, "numeric"))
   if (is.list(nuisance)) { stopifnot(length(nuisance)==nN) }
-  #if (is.list(scrub)) { stopifnot(length(scrub)==nN) }
+  if (is.list(scrub)) { stopifnot(length(scrub)==nN) }
   stopifnot(is_1(drop_first, "numeric") && drop_first==round(drop_first))
   if (TR!= "from_xifti_metadata") { stopifnot(fMRItools::is_posNum(TR)) }
   stopifnot(fMRItools::is_posNum(hpf, zero_ok=TRUE))
@@ -716,8 +716,8 @@ fit_BBM <- function(
       }
     }
     if (!is.list(meshes)) stop('`meshes` must be a list.')
-    if (!all(vapply(meshes, inherits, what="BBM_mesh", FALSE))) {
-      stop('Each element of `meshes` should be of class `"BBM_mesh"`. See `help(make_mesh)`.')
+    if (!all(vapply(meshes, inherits, what="BrainMap_mesh", FALSE))) {
+      stop('Each element of `meshes` should be of class `"BrainMap_mesh"`. See `help(make_mesh)`.')
     }
     ndat_mesh <- sum(vapply(meshes, function(x){sum(x$A)}, 0))
     if (ndat_mesh != nV) {
@@ -870,26 +870,17 @@ fit_BBM <- function(
   if (verbose) { cat("\n") }
   if (verbose) { cat("Pre-processing BOLD data.\n") }
 
-  # Nuisance regression and scrubbing. -----------------------------------------
   add_to_nuis <- function(x, nuis) {
-    if (is.null(nuis)) {
-      if(is.matrix(x)) {result <- x} else {result <- as.matrix(x, ncol=1)}
-    } else {
-      result <- cbind(x, nuis)
-    }
-    return(result)
+    if (is.null(nuis)) { x } else { cbind(x, nuis) }
   }
-  
+
   nmat <- vector("list", nN)
-  mu <- vector("list", nN)
   nDCT <- if (hpf==0) { NULL } else { vector("numeric", nN) } # could return this
   nT_pre <- nT
   for (nn in seq(nN)) {
     if (verbose && nN > 1) { cat(paste0("Session ", nn, ":")) }
     # Collect nuisance matrix columns.
     nmat[nn] <- list(NULL)
-    # Collect means for each column
-    mu[nn] <- list(NULL)
     ## `nuisance`
     nuisance_nn <- if (is.list(nuisance)) { nuisance[[nn]] } else { nuisance }
     if (!is.null(nuisance_nn)) {
@@ -928,18 +919,13 @@ fit_BBM <- function(
       if (verbose) { cat("Using", nDCT[nn], "DCT bases.\n") }
       nmat[[nn]] <- add_to_nuis(dct_bases(nT[nn], nDCT[nn]), nmat[[nn]])
     }
-
-    ## Perform nuisance regression, and drop scrubbed volumes, if applicable. ----
-    ones <- rep(1, nT[[nn]])
-    nmat[[nn]] <- add_to_nuis(ones, nmat[[nn]]) #add intercept
-    
-    # Calculate mu as the intercept from nuisance regression. 
-    mu[[nn]] <- (solve(crossprod(nmat[[nn]])) %*% t(nmat[[nn]]) %*% t(BOLD[[nn]]))[1,]
-    
-    if (verbose && nN > 1) { cat("\t") }
-    if (verbose) { cat("Doing nuisance regression with", ncol(nmat[[nn]]), "total regressors.\n") }
-    BOLD[[nn]] <- nuisance_regression(BOLD[[nn]], nmat[[nn]])
-    
+    # Perform nuisance regression, if applicable.
+    if (!is.null(nmat[[nn]])) {
+      nmat[[nn]] <- cbind(1, nmat[[nn]])
+      if (verbose && nN > 1) { cat("\t") }
+      if (verbose) { cat("Doing nuisance regression with", ncol(nmat[[nn]]), "total regressors.\n") }
+      BOLD[[nn]] <- nuisance_regression(BOLD[[nn]], nmat[[nn]])
+    }
     # Drop scrubbed volumes, if applicable.
     if (!is.null(scrub_nn)) {
       BOLD[[nn]] <- BOLD[[nn]][,-scrub_nn,drop=FALSE]
@@ -968,16 +954,12 @@ fit_BBM <- function(
   }
 
   mask2and3 <- if (use_mask2) { mask2 } else { mask3 } # [TO DO] patch???
-  
-  BOLD <- Map(
-    function(B, m) norm_BOLD(
-      B,
-      center_rows = TRUE, center_cols = GSR,
-      scale = scale, scale_sm_xifti = xii1, scale_sm_FWHM = scale_sm_FWHM,
-      scale_sm_xifti_mask = mask2and3,
-      hpf = 0, mu = m
-    ),
-    BOLD, mu
+
+  BOLD <- lapply(BOLD, norm_BOLD,
+    center_rows=TRUE, center_cols=GSR,
+    scale=scale, scale_sm_xifti=xii1, scale_sm_FWHM=scale_sm_FWHM,
+    scale_sm_xifti_mask=mask2and3,
+    hpf=0
   )
 
   ## Estimate and subtract nuisance ICs ----------------------------------------
@@ -1001,10 +983,13 @@ fit_BBM <- function(
       if (scale != "none") { cat(",", scale, "scaling") }
       cat(".\n")
     }
-    
-    # Center `BOLD` sessions (again).
-    BOLD <- lapply(BOLD, function(x){x - rowMeans(x)})
 
+    BOLD <- lapply(BOLD, norm_BOLD,
+      center_rows=TRUE, center_cols=FALSE,
+      scale=scale, scale_sm_xifti=xii1, scale_sm_FWHM=scale_sm_FWHM,
+      scale_sm_xifti_mask=mask2and3,
+      hpf=0
+    )
   } else {
     Q2_est <- rep(0, nN)
   }
@@ -1027,7 +1012,7 @@ fit_BBM <- function(
 
   BOLD_DR <- dual_reg(
     BOLD, prior$mean, GSR=FALSE,
-    scale="none", hpf=0
+    scale=FALSE, hpf=0
   )
 
   t1 <- Sys.time() - t0
@@ -1057,6 +1042,7 @@ fit_BBM <- function(
     reduce_dim <- TRUE #only temporary, for initilizing with prior ICA, then will set to FALSE
   }
 
+
   ## 1) Bayesian brain mapping -----------------------------------------------------------
   if (reduce_dim) {
     if (verbose) { cat("Reducing data dimensions.\n") }
@@ -1085,10 +1071,10 @@ fit_BBM <- function(
     C_diag <- rep(1, nT)
     H <- Hinv <- NULL
   }
-  
+
   theta00 <- theta0
   theta00$nu0_sq <- err_var
-  result <- EM_BBM.independent(
+  result <- EM_BrainMap.independent(
     prior_mean=prior$mean,
     prior_var=prior$var,
     BOLD=BOLD2,
@@ -1123,11 +1109,11 @@ fit_BBM <- function(
 
     #no parallelization implemented for VB1
     if(method_FC=='VB1') {
-      if (usePar) { doParallel::stopImplicitCluster() }
       usePar <- FALSE
+      doParallel::stopImplicitCluster()
     }
 
-    result <- VB_FC_BBM(
+    result <- VB_FCBrainMap(
         prior_mean = prior$mean,
         prior_var = prior$var,
         prior_FC = prior_FC,
@@ -1159,7 +1145,7 @@ fit_BBM <- function(
     theta0$kappa <- rep(kappa_init, nL)
     if(verbose) cat('ESTIMATING SPATIAL MODEL\n')
     t000 <- Sys.time()
-    result <- EM_BBM.spatial(prior$mean,
+    result <- EM_BrainMap.spatial(prior$mean,
                                         prior$var,
                                         meshes,
                                         BOLD=BOLD2,
@@ -1210,7 +1196,7 @@ fit_BBM <- function(
   # }
 
   # Params
-  BBM_params <- list(
+  bMap_params <- list(
     GSR=GSR,
     scale=scale, hpf=hpf, TR=TR,
     Q2=Q2, Q2_max=Q2_max, Q2_est=Q2_est,
@@ -1281,7 +1267,7 @@ fit_BBM <- function(
   result$BOLD <- BOLD
   result$mask <- mask2
   result$nuisance <- nmat
-  result$params <- BBM_params
+  result$params <- bMap_params
 
   #record computation time of each algorithm
   result$comptime <- c(as.numeric(t1, units = "secs"),
