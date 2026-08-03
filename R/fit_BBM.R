@@ -1193,7 +1193,7 @@ fit_BBM <- function(
   if (usePar) { doParallel::stopImplicitCluster() }
 
   if(MLE) { # Return maximum likelihood estimation as DR from posterior A matrix
-    MLE <- solve(a=crossprod(result$A), b=crossprod(result$A, BOLD))
+    MLE <- solve(a=crossprod(result$A), b=crossprod(result$A, t(BOLD)))
     result$MLE <- t(MLE)
   }
 
