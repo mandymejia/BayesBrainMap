@@ -178,6 +178,8 @@
 # @param common_smoothness If \code{TRUE}. use the common smoothness version
 #  of the spatial prior ICA model, which assumes that all IC's have the same
 #  smoothness parameter, \eqn{\kappa}
+# @param MLE If \code{TRUE}. Will calculate and return MLE map based on BBM temporal
+# mixing matrix estimate. Default: \code{TRUE}
 #'
 #' @return A (spatial) prior ICA object, which is a list containing:
 #'  \code{subjNet_mean}, the \eqn{V \times L} estimated independent components
@@ -237,6 +239,7 @@ fit_BBM <- function(
   usePar=TRUE,
   PW=FALSE,
   seed=1234,
+  MLE=TRUE,
   verbose=TRUE){
 
   t0 <- Sys.time()
