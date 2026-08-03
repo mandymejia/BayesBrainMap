@@ -1191,7 +1191,7 @@ fit_BBM <- function(
 
   if(MLE) { # Return maximum likelihood estimation as DR from posterior A matrix
     MLE <- solve(a=crossprod(result$A), b=crossprod(result$A, BOLD))
-    result$MLE <- t(MLE
+    result$MLE <- t(MLE)
   }
 
   # Return DR estimates.
