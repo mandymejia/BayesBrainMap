@@ -1057,6 +1057,7 @@ fit_BBM <- function(
     reduce_dim <- TRUE #only temporary, for initilizing with prior ICA, then will set to FALSE
   }
 
+
   ## 1) Bayesian brain mapping -----------------------------------------------------------
   if (reduce_dim) {
     if (verbose) { cat("Reducing data dimensions.\n") }
@@ -1188,6 +1189,11 @@ fit_BBM <- function(
   ## Wrapping up ---------------------------------------------------------------
   if (usePar) { doParallel::stopImplicitCluster() }
 
+  if(MLE) { # Return maximum likelihood estimation as DR from posterior A matrix
+    MLE <- solve(a=crossprod(result$A), b=crossprod(result$A, BOLD))
+    result$MLE <- t(MLE
+  }
+
   # Return DR estimates.
   result$result_DR <- BOLD_DR
 
@@ -1242,6 +1248,7 @@ fit_BBM <- function(
     xiiL <- ciftiTools::convert_to_dscalar(xiiL, names=paste("Network", net_inds))
     result$subjNet_mean <- ciftiTools::newdata_xifti(xiiL, result$subjNet_mean)
     result$subjNet_se <- ciftiTools::newdata_xifti(xiiL, result$subjNet_se)
+    if (MLE) {result$MLE <- ciftiTools::newdata_xifti(xiiL, result$MLE)}
 
     if (FORMAT == "GIFTI") {
       # Apply `mask2`. # [TO DO] what?
