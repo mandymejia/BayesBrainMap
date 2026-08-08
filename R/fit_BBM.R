@@ -178,7 +178,7 @@
 # @param common_smoothness If \code{TRUE}. use the common smoothness version
 #  of the spatial prior ICA model, which assumes that all IC's have the same
 #  smoothness parameter, \eqn{\kappa}
-# @param MLE If \code{TRUE}. Will calculate and return MLE map based on BBM temporal
+# @param doMLE If \code{TRUE}. Will calculate and return MLE map based on BBM temporal
 # mixing matrix estimate. Default: \code{TRUE}
 #'
 #' @return A (spatial) prior ICA object, which is a list containing:
@@ -239,7 +239,7 @@ fit_BBM <- function(
   usePar=TRUE,
   PW=FALSE,
   seed=1234,
-  MLE=TRUE,
+  doMLE=TRUE,
   verbose=TRUE){
 
   t0 <- Sys.time()
@@ -351,6 +351,7 @@ fit_BBM <- function(
   if (!is.null(kappa_init)) { stopifnot(is_posNum(kappa_init)) }
   stopifnot(is_1(usePar, "logical") || is_1(usePar, "numeric"))
   stopifnot(is_1(verbose, "logical"))
+  stopifnot(is_1(doMLE, "logical"))
 
   # `usePar`
   if (!isFALSE(usePar)) {
@@ -1192,7 +1193,7 @@ fit_BBM <- function(
   ## Wrapping up ---------------------------------------------------------------
   if (usePar) { doParallel::stopImplicitCluster() }
 
-  if(MLE) { # Return maximum likelihood estimation as DR from posterior A matrix
+  if(doMLE) { # Return maximum likelihood estimation as DR from posterior A matrix
     MLE <- solve(a=crossprod(result$A), b=crossprod(result$A, t(BOLD)))
     result$MLE <- t(MLE)
   }
@@ -1251,7 +1252,7 @@ fit_BBM <- function(
     xiiL <- ciftiTools::convert_to_dscalar(xiiL, names=paste("Network", net_inds))
     result$subjNet_mean <- ciftiTools::newdata_xifti(xiiL, result$subjNet_mean)
     result$subjNet_se <- ciftiTools::newdata_xifti(xiiL, result$subjNet_se)
-    if (MLE) {result$MLE <- ciftiTools::newdata_xifti(xiiL, result$MLE)}
+    if (doMLE) {result$MLE <- ciftiTools::newdata_xifti(xiiL, result$MLE)}
 
     if (FORMAT == "GIFTI") {
       # Apply `mask2`. # [TO DO] what?
