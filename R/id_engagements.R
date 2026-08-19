@@ -148,7 +148,8 @@ id_engagements <- function(
   if (!is.null(z)) {
     stopifnot(!is.matrix(z))
     z <- sort(z, decreasing=type=="<")
-    u_mat <- outer(z, sqrt(colVars(bMap$t_mean[,which.nets,drop=FALSE])))
+    sdvec <- sqrt(colVars(bMap$t_mean[,which.nets,drop=FALSE]))
+    u_mat <- outer(z, sdvec)
   } else if (!is.null(u)) {
     stopifnot(!is.matrix(u))
     u <- sort(u, decreasing=type=="<")
@@ -171,11 +172,22 @@ id_engagements <- function(
     u=u, z=z, type=type, deviation=deviation, collapse=FALSE
   )
 
+  # Message for `z`.
+  if (verbose && !is.null(z)) {
+    u_msg <- paste0(
+      ifelse(length(z)>1, paste0("(", paste(z, collapse=", "), ")"), z), "*\u03C3"
+    )
+    cat(paste0("Using `z`: identifying areas of significant engagement greater than ",
+      u_msg, ". For each network, \u03C3 is based on the prior mean map and is equal to ",
+      "1 SD above the mean across vertices/voxels. Values of ", u_msg, " are stored in ",
+      "`result$u_mat`.\n\n"))
+  }
+
   # Loop over `u` to compute engagements. --------------------------------------
   out <- vector("list", nU)
   names(out) <- eng_name
   for (uu in seq(nU)) {
-    if (verbose) { cat(eng_name[uu], ".\n") }
+    if (verbose) { cat(eng_name[uu], "\n") }
     uu_mat <- matrix(u_mat[uu,], nrow=nV, ncol=nL, byrow=TRUE)
 
     bMap_diff <- bMap$s_mean - uu_mat
@@ -311,6 +323,7 @@ id_engagements <- function(
     se=abind(lapply(out, '[[', "se"), along=3),
     tstats=abind(lapply(out, '[[', "tstats"), along=3),
     thresholded=abind(lapply(out, '[[', "thresholded"), along=3),
+    u_mat=u_mat,
     params=list(
       alpha=alpha, method_p=method_p, type=type, u=u, z=z,
       which.nets=which.nets, deviation=deviation
