@@ -259,9 +259,9 @@ print.summary.bMap_eng.nifti <- function(x, ...) {
   }
   adesc <- if (x$deviation) {
     if (any(x$u!=0)) {
-      paste("x", x$type, "mu", usign, ustr)
+      paste("x", x$type, "mean", usign, ustr)
     } else {
-      paste("x", x$type, "mu")
+      paste("x", x$type, "mean")
     }
   } else {
     if (any(x$u!=0)) {
@@ -363,9 +363,9 @@ print.summary.bMap_eng.matrix <- function(x, ...) {
   }
   adesc <- if (x$deviation) {
     if (any(x$u!=0)) {
-      paste("x", x$type, "mu", usign, ustr)
+      paste("x", x$type, "mean", usign, ustr)
     } else {
-      paste("x", x$type, "mu")
+      paste("x", x$type, "mean")
     }
   } else {
     if (any(x$u!=0)) {

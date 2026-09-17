@@ -64,7 +64,7 @@ format_engagement_name <- function(u, z, type, deviation, collapse=FALSE){
     "0"
   }
 
-  RHS <- if (deviation) { add_str("mu", RHS) } else { add_str("0", RHS) }
+  RHS <- if (deviation) { add_str("mean", RHS) } else { add_str("0", RHS) }
 
   # all together now.
   # [Note]: could optionally gsub("1*", "", result, fixed=TRUE)
