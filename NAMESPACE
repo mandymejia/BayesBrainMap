@@ -45,48 +45,58 @@ export(export_prior)
 export(fit_BBM)
 export(id_engagements)
 import(Matrix)
-importFrom(Matrix,Diagonal)
-importFrom(Matrix,Matrix)
-importFrom(Matrix,bandSparse)
-importFrom(Matrix,bdiag)
-importFrom(Matrix,diag)
-importFrom(Matrix,sparseMatrix)
+importFrom(Matrix,
+  Diagonal,
+  Matrix,
+  bandSparse,
+  bdiag,
+  diag,
+  sparseMatrix
+)
 importFrom(SQUAREM,squarem)
 importFrom(abind,abind)
 importFrom(fMRIscrub,flags_to_nuis_spikes)
-importFrom(fMRItools,PCA)
-importFrom(fMRItools,UT2mat)
-importFrom(fMRItools,all_binary)
-importFrom(fMRItools,colCenter)
-importFrom(fMRItools,dct_bases)
-importFrom(fMRItools,dct_convert)
-importFrom(fMRItools,dual_reg)
-importFrom(fMRItools,infer_format_ifti_vec)
-importFrom(fMRItools,is_1)
-importFrom(fMRItools,is_integer)
-importFrom(fMRItools,is_posNum)
-importFrom(fMRItools,nuisance_regression)
-importFrom(fMRItools,unmask_mat)
-importFrom(fMRItools,unvec_vol)
-importFrom(fMRItools,var_decomp)
-importFrom(grDevices,colorRamp)
-importFrom(grDevices,rgb)
-importFrom(matrixStats,colVars)
-importFrom(matrixStats,rowMedians)
-importFrom(matrixStats,rowVars)
+importFrom(fMRItools,
+  PCA,
+  UT2mat,
+  all_binary,
+  colCenter,
+  dct_bases,
+  dct_convert,
+  dual_reg,
+  infer_format_ifti_vec,
+  is_1,
+  is_integer,
+  is_posNum,
+  norm_BOLD,
+  nuisance_regression,
+  unmask_mat,
+  unvec_vol,
+  var_decomp
+)
+importFrom(grDevices,
+  colorRamp,
+  rgb
+)
+importFrom(matrixStats,
+  colVars,
+  rowVars
+)
 importFrom(methods,new)
 importFrom(pesel,pesel)
-importFrom(stats,acf)
-importFrom(stats,ar.yw)
-importFrom(stats,complete.cases)
-importFrom(stats,cor)
-importFrom(stats,cov)
-importFrom(stats,optim)
-importFrom(stats,optimize)
-importFrom(stats,p.adjust)
-importFrom(stats,pnorm)
-importFrom(stats,quantile)
-importFrom(stats,rnorm)
-importFrom(stats,sd)
-importFrom(stats,var)
+importFrom(stats,
+  acf,
+  ar.yw,
+  complete.cases,
+  cor,
+  cov,
+  optim,
+  optimize,
+  p.adjust,
+  pnorm,
+  quantile,
+  rnorm,
+  sd,
+  var
+)
 importFrom(utils,packageVersion)
