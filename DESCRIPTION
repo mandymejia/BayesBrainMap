@@ -36,7 +36,7 @@ Additional_repositories: https://inla.r-inla-download.org/R/testing
 Encoding: UTF-8
 Imports:
     abind,
-    fMRItools (>= 0.7.1),
+    fMRItools (>= 0.8.0),
     fMRIscrub (>= 0.14.5),
     foreach,
     Matrix,
@@ -62,4 +62,4 @@ Suggests:
 Roxygen: list(markdown = TRUE)
 URL: https://github.com/mandymejia/BayesBrainMap
 BugReports: https://github.com/mandymejia/BayesBrainMap/issues
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0
