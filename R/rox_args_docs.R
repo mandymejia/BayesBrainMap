@@ -37,14 +37,28 @@ NULL
 #' @keywords internal
 NULL
 
-#' scale
+#' scale_by
 #'
-#' @param scale \code{"local"} (default), \code{"global"}, or \code{"none"}.
-#'  Local scaling will divide each data location's time series by its mean,
-#'  after centering. Global scaling will divide the entire data matrix by the
-#'  overall mean. Note: If input data has already been centered, must set scale = "none".
+#' @param scale_by Scale the BOLD at each voxel based on either its 
+#'  \code{"mean"} (default), or its \code{"sd"}. Mean scaling cannot be used if
+#'  the \code{BOLD} have already been de-meaned. 
+#' 
+#' @name scale_by_Param
+#' @keywords internal
+NULL
+
+#' scale_sm_FWHM
 #'
-#' @name scale_Param
+#' @param scale_sm_FWHM Full width at half maximum (FWHM) for smoothing the
+#'  estimates of scale across brain locations (see \code{scale_by}), to reduce
+#'  the variance of the estimates. Set to \code{0} to disable smoothing, or
+#'  \code{Inf} for "global" smoothing (estimate and use one measure of scale 
+#'  across the entire brain). Otherwise, for "local" smoothing, this should be a
+#'  positive number. Note that local smoothing is only available for surface 
+#'  data input (CIFTI or GIFTI \code{BOLD}). Default: local smoothing with a 
+#'  FWHM of \code{4}.
+#' 
+#' @name scale_sm_FWHM_Param
 #' @keywords internal
 NULL
 
