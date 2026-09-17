@@ -37,5 +37,41 @@ BayesBrainMap_citations <- c(
 		pages        = "1--35",
 		publisher    = "American Statistical Association",
 		doi          = "10.1080/10618600.2022.2104289"
+	),
+
+	bibentry(
+		bibtype  = "Article",
+		title    = "{L}everaging population information in brain connectivity via {B}ayesian {ICA} with a novel informative prior for correlation matrices",
+		author   = c(
+			as.person("Amanda F Mejia"),
+			as.person("David Bolin"),
+			as.person("Daniel A Spencer"),
+			as.person("Ani Eloyan")
+		),
+		journal  = "Biostatistics",
+		year     = 2025,
+		volume   = 26,
+		number   = 1,
+		pages    = "kxaf022",
+		doi      = "10.1093/biostatistics/kxaf022"
+	),
+
+	bibentry(
+		bibtype  = "Misc",
+		title    = "Bayesian brain mapping: population-informed individualized functional topography and connectivity",
+		author   = c(
+			person("Diego Derman"),
+			person("Nohelia Da Silva Sanchez"),
+			person("Saige Rutherford"),
+			person("Damon D Pham"),
+			person("Ellyn R Butler"),
+			person("Mary Beth Nebel"),
+			person("Amanda F Mejia")
+		),
+		year     = 2026,
+		eprint   = "2602.01551",
+		archivePrefix = "arXiv",
+		primaryClass  = "stat.AP",
+		url      = "https://arxiv.org/abs/2602.01551"
 	)
 )
