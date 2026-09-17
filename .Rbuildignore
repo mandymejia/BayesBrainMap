@@ -17,3 +17,4 @@
 ^tests/run_BayesBrainMap_tests_notInPackage.R$
 ^tests/run_BayesBrainMap_tests_notInPackage_testNewChanges.R$
 ^inst/extdata/HCP_template_25\.rds$
+^.claude$

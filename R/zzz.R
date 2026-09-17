@@ -1,6 +1,6 @@
 #' Message on attach
 #' 
-#' Direct user to indicate Connectome Workbench path and check gifti package version.
+#' Direct user to papers to cite.
 #'
 #' @param ... Not used
 #' 
@@ -9,9 +9,7 @@
 #' @keywords internal
 .onAttach <- function(...) {
   if (interactive()) {
-    if (is.null(getOption("ciftiTools_wb_path"))) {
-      packageStartupMessage(welcome_msg())
-    }
+    packageStartupMessage(welcome_msg())
   }
 
   invisible(NULL)
