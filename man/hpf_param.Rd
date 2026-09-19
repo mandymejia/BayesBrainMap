@@ -5,7 +5,7 @@
 \title{hpf}
 \arguments{
 \item{hpf}{The frequency at which to apply a highpass filter to the data
-during pre-processing, in Hertz. Default: \code{0} Hz (disabled). If the
+during pre-processing, in Hertz. Default: \code{NULL} (disabled). If the
 data has not already been highpass filtered, a recommended filter value is
 \code{.01} Hz.
 The highpass filter serves to detrend the data, since low-frequency
@@ -13,7 +13,7 @@ variance is associated with noise. Highpass filtering is accomplished by
 nuisance regression of discrete cosine transform (DCT) bases.
 
 Note the \code{TR} argument is required for highpass filtering. If
-\code{TR} is not provided, \code{hpf} will be ignored.}
+\code{TR} is not provided, an error will be raised if \code{hpf} is set.}
 }
 \description{
 hpf

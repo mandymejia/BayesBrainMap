@@ -10,7 +10,7 @@ NULL
 #' hpf
 #'
 #' @param hpf The frequency at which to apply a highpass filter to the data
-#'  during pre-processing, in Hertz. Default: \code{0} Hz (disabled). If the
+#'  during pre-processing, in Hertz. Default: \code{NULL} (disabled). If the
 #'  data has not already been highpass filtered, a recommended filter value is
 #'  \code{.01} Hz.
 
@@ -19,9 +19,39 @@ NULL
 #'  nuisance regression of discrete cosine transform (DCT) bases.
 #'
 #'  Note the \code{TR} argument is required for highpass filtering. If
-#'  \code{TR} is not provided, \code{hpf} will be ignored.
+#'  \code{TR} is not provided, an error will be raised if \code{hpf} is set.
 #'
 #' @name hpf_param
+#' @keywords internal
+NULL
+
+#' lpf
+#'
+#' @param lpf The frequency at which to apply a lowpass filter to the data
+#'  during pre-processing, in Hertz. Default: \code{NULL} (disabled). Though
+#'  this argument is offered, we do not recommend using a a LPF. 
+
+#'  Note the \code{TR} argument is required for lowpass filtering. If
+#'  \code{TR} is not provided, an error will be raised if \code{lpf} is set.
+#'
+#' @name lpf_param
+#' @keywords internal
+NULL
+
+#' hpf_lpf
+#' 
+#' @param hpf,lpf The frequencies at which to apply temporal filtering to the
+#'  data during pre-processing, in Hertz. Set either to \code{NULL} to disable.
+#'  Default: \code{0.01} Hz highpass filter, and \code{NULL} for the lowpass
+#'  filter (disabled). Highpass filtering is accomplished by nuisance regression
+#'  of discrete cosine transform (DCT) bases. Lowpass filtering is accomplished
+#'  by a non-linear filter: \code{\link[fsl_bptf]}.
+#' 
+#'  Note the \code{TR} argument is required for temporal filtering. If
+#'  \code{TR} is not provided, an error will be raised if \code{hpf} or
+#'  \code{lpf} is set.
+#' 
+#' @name hpf_lpf_param
 #' @keywords internal
 NULL
 
