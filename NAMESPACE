@@ -68,6 +68,7 @@ importFrom(fMRItools,
   is_1,
   is_integer,
   is_posNum,
+  mask_BOLD,
   norm_BOLD,
   nuisance_regression,
   unmask_mat,
@@ -78,10 +79,7 @@ importFrom(grDevices,
   colorRamp,
   rgb
 )
-importFrom(matrixStats,
-  colVars,
-  rowVars
-)
+importFrom(matrixStats,colVars)
 importFrom(methods,new)
 importFrom(pesel,pesel)
 importFrom(stats,
