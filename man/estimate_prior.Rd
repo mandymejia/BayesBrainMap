@@ -13,16 +13,16 @@ estimate_prior(
   template,
   mask = NULL,
   inds = NULL,
+  drop_first = 0,
+  nuisance = NULL,
+  scrub = NULL,
+  TR = NULL,
+  hpf = NULL,
+  GSR = FALSE,
   scale_by = c("mean", "sd", "none"),
   scale_sm_FWHM = 4,
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  nuisance = NULL,
-  scrub = NULL,
-  drop_first = 0,
-  hpf = 0,
-  TR = NULL,
-  GSR = FALSE,
   Q2 = 0,
   Q2_max = NULL,
   covariates = NULL,
@@ -46,24 +46,29 @@ estimate_prior.cifti(
   BOLD,
   BOLD2 = NULL,
   template,
+  mask = NULL,
   inds = NULL,
+  drop_first = 0,
+  nuisance = NULL,
+  scrub = NULL,
+  TR = NULL,
+  hpf = NULL,
+  GSR = FALSE,
   scale_by = c("mean", "sd", "none"),
   scale_sm_FWHM = 4,
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  nuisance = NULL,
-  scrub = NULL,
-  drop_first = 0,
-  hpf = 0,
-  TR = NULL,
-  GSR = FALSE,
   Q2 = 0,
   Q2_max = NULL,
+  covariates = NULL,
   brainstructures = "all",
-  resamp_res = resamp_res,
+  resamp_res = NULL,
   keep_S = FALSE,
   keep_FC = FALSE,
   FC = TRUE,
+  FC_nPivots = 100,
+  FC_nSamp = 50000,
+  FC_updateA = FALSE,
   varTol = 1e-06,
   maskTol = 0.1,
   missingTol = 0.1,
@@ -76,23 +81,29 @@ estimate_prior.gifti(
   BOLD,
   BOLD2 = NULL,
   template,
+  mask = NULL,
   inds = NULL,
+  drop_first = 0,
+  nuisance = NULL,
+  scrub = NULL,
+  TR = NULL,
+  hpf = NULL,
+  GSR = FALSE,
   scale_by = c("mean", "sd", "none"),
   scale_sm_FWHM = 4,
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  nuisance = NULL,
-  scrub = NULL,
-  drop_first = 0,
-  hpf = 0,
-  TR = NULL,
-  GSR = FALSE,
   Q2 = 0,
   Q2_max = NULL,
+  covariates = NULL,
   brainstructures = "all",
+  resamp_res = NULL,
   keep_S = FALSE,
   keep_FC = FALSE,
   FC = TRUE,
+  FC_nPivots = 100,
+  FC_nSamp = 50000,
+  FC_updateA = FALSE,
   varTol = 1e-06,
   maskTol = 0.1,
   missingTol = 0.1,
@@ -105,23 +116,29 @@ estimate_prior.nifti(
   BOLD,
   BOLD2 = NULL,
   template,
+  mask = NULL,
   inds = NULL,
+  drop_first = 0,
+  nuisance = NULL,
+  scrub = NULL,
+  TR = NULL,
+  hpf = NULL,
+  GSR = FALSE,
   scale_by = c("mean", "sd", "none"),
   scale_sm_FWHM = 4,
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  nuisance = NULL,
-  scrub = NULL,
-  drop_first = 0,
-  hpf = 0,
-  TR = NULL,
-  GSR = FALSE,
   Q2 = 0,
   Q2_max = NULL,
-  mask = NULL,
+  covariates = NULL,
+  brainstructures = "all",
+  resamp_res = NULL,
   keep_S = FALSE,
   keep_FC = FALSE,
   FC = TRUE,
+  FC_nPivots = 100,
+  FC_nSamp = 50000,
+  FC_updateA = FALSE,
   varTol = 1e-06,
   maskTol = 0.1,
   missingTol = 0.1,
@@ -158,12 +175,11 @@ the parcel to which each location belongs to. Each parcel is modeled as a
 brain map; instead of the first step of dual regression, the medial
 timecourse of each parcel is used.}
 
-\item{mask}{Required if \code{BOLD} are NIFTI file paths or \code{"nifti"}
-objects, and optional for other formats. For NIFTI data, this is a logical
-array of the same spatial dimensions as the fMRI data, with \code{TRUE}
-corresponding to in-mask voxels. For other data, this is a logical vector
-with the same length as the number of locations in \code{template}, with
-\code{TRUE} corresponding to in-mask locations.}
+\item{mask}{Required if the entries of \code{BOLD} are NIFTI
+file paths or \code{"nifti"} objects, optional for other formats. For
+NIFTI, this is a binary array of the same spatial dimensions as the fMRI
+data, with \code{TRUE} corresponding to in-mask voxels. For other formats,
+a logical vector.}
 
 \item{inds}{Numeric indices of the networks in \code{template} to include in
 the prior. If \code{NULL}, use all of the original networks (default).
@@ -173,29 +189,8 @@ calculating dual regression, not before. This is because removing the networks
 prior to dual regression would leave unmodelled signals in the data, which
 could bias the priors.}
 
-\item{scale_by}{Scale the BOLD at each voxel based on either its
-\code{"mean"} (default), or its \code{"sd"}. Mean scaling cannot be used if
-the \code{BOLD} have already been de-meaned.}
-
-\item{scale_sm_FWHM}{Full width at half maximum (FWHM) for smoothing the
-estimates of scale across brain locations (see \code{scale_by}), to reduce
-the variance of the estimates. Set to \code{0} to disable smoothing, or
-\code{Inf} for "global" smoothing (estimate and use one measure of scale
-across the entire brain). Otherwise, for "local" smoothing, this should be a
-positive number. Note that local smoothing is only available for surface
-data input (CIFTI or GIFTI \code{BOLD}). Default: local smoothing with a
-FWHM of \code{4}.}
-
-\item{scale_sm_surfL, scale_sm_surfR}{Required only for "local" smoothing
-(see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the surface
-geometries along which to smooth, as GIFTI geometry files or
-\code{ciftiTools} \code{"surf"} objects. The resolutions should match with
-those of the \code{BOLD} data.
-
-To create a \code{"surf"} object from data, see
-\code{\link[ciftiTools]{make_surf}}.
-
-If not provided, the fs_LR "midthickness" surfaces will be used.}
+\item{drop_first}{(Optional) Number of volumes to drop from the start of each
+BOLD session. Default: \code{0}.}
 
 \item{nuisance}{(Optional) Nuisance matrices to regress from the BOLD data.
 Should be a list of matrices, with time along the rows and nuisance signals
@@ -227,8 +222,8 @@ Note that indices are counted beginning with the first index in the
 \code{BOLD} session irregardless of \code{drop_first}. The indices will be
 adjusted automatically if \code{drop_first>0}.}
 
-\item{drop_first}{(Optional) Number of volumes to drop from the start of each
-BOLD session. Default: \code{0}.}
+\item{TR}{The temporal resolution of the data, i.e. the time between volumes,
+in seconds. \code{TR} is required for detrending with \code{hpf}.}
 
 \item{hpf}{The frequency at which to apply a highpass filter to the data
 during pre-processing, in Hertz. Default: \code{NULL} (disabled). If the
@@ -241,12 +236,33 @@ nuisance regression of discrete cosine transform (DCT) bases.
 Note the \code{TR} argument is required for highpass filtering. If
 \code{TR} is not provided, an error will be raised if \code{hpf} is set.}
 
-\item{TR}{The temporal resolution of the data, i.e. the time between volumes,
-in seconds. \code{TR} is required for detrending with \code{hpf}.}
-
 \item{GSR}{Center BOLD across columns (each image)? This
 is equivalent to performing global signal regression. Default:
 \code{FALSE}.}
+
+\item{scale_by}{Scale the BOLD at each voxel based on either its
+\code{"mean"} (default), or its \code{"sd"}. Mean scaling cannot be used if
+the \code{BOLD} have already been de-meaned.}
+
+\item{scale_sm_FWHM}{Full width at half maximum (FWHM) for smoothing the
+estimates of scale across brain locations (see \code{scale_by}), to reduce
+the variance of the estimates. Set to \code{0} to disable smoothing, or
+\code{Inf} for "global" smoothing (estimate and use one measure of scale
+across the entire brain). Otherwise, for "local" smoothing, this should be a
+positive number. Note that local smoothing is only available for surface
+data input (CIFTI or GIFTI \code{BOLD}). Default: local smoothing with a
+FWHM of \code{4}.}
+
+\item{scale_sm_surfL, scale_sm_surfR}{Required only for "local" smoothing
+(see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the surface
+geometries along which to smooth, as GIFTI geometry files or
+\code{ciftiTools} \code{"surf"} objects. The resolutions should match with
+those of the \code{BOLD} data.
+
+To create a \code{"surf"} object from data, see
+\code{\link[ciftiTools]{make_surf}}.
+
+If not provided, the fs_LR "midthickness" surfaces will be used.}
 
 \item{Q2, Q2_max}{Obtain dual regression estimates after denoising? Denoising is
 based on modeling and removing nuisance ICs. It may result in a cleaner
