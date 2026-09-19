@@ -31,7 +31,7 @@ estimate_prior_from_DR <- function(
   nN <- dim(DR)[2]  # subjects
   nLV <- dim(DR)[3] # locations & networks
   if (!is.null(LV)) {
-    stopifnot(is.numeric(nLV) && all(nLV > 0) && all(nLV == round(nLV)))
+    stopifnot(is.numeric(LV) && all(LV > 0))
     stopifnot(prod(LV) == nLV)
   }
 
@@ -490,12 +490,6 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #'  Default: \code{c("all")}.
 #' @param resamp_res Only applies if the entries of \code{BOLD} are CIFTI file paths.
 #'  Resample the data upon reading it in? Default: \code{NULL} (no resampling).
-#' @param mask Required if \code{BOLD} are NIFTI file paths or \code{"nifti"}
-#'  objects, and optional for other formats. For NIFTI data, this is a logical
-#'  array of the same spatial dimensions as the fMRI data, with \code{TRUE}
-#'  corresponding to in-mask voxels. For other data, this is a logical vector
-#'  with the same length as the number of locations in \code{template}, with
-#'  \code{TRUE} corresponding to in-mask locations.
 #' @param keep_S Keep the DR estimates of S? If \code{FALSE} (default), do not save
 #'  the DR estimates and only return the priors. If \code{TRUE}, the DR
 #'  estimates of S are returned too. If a single file path, save the DR estimates as
@@ -564,7 +558,7 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #'  \code{wb_path} must also be provided.
 #' @param verbose Display progress updates? Default: \code{TRUE}.
 #'
-#' @importFrom stats cov quantile
+#' @importFrom stats cov quantile complete.cases
 #' @importFrom fMRItools is_1 is_integer is_posNum colCenter unmask_mat infer_format_ifti_vec all_binary
 #' @importFrom abind abind
 #'
@@ -730,6 +724,10 @@ estimate_prior <- function(
     } else {
       cluster <- parallel::makeCluster(nCores, outfile="")
       doParallel::registerDoParallel(cluster)
+      on.exit({
+        parallel::stopCluster(cluster)
+        foreach::registerDoSEQ()
+      }, add=TRUE)
     }
   }
 
@@ -771,15 +769,34 @@ estimate_prior <- function(
       rm(missing_BOLD2)
       if (all(missing_BOLD)) stop('Files in `BOLD` and/or `BOLD2` are missing such that no complete pair of data exists.')
     }
-    if (any(missing_BOLD)) {
+    if (any(missing_BOLD)) { # this block is written by Claude, read/verified by Damon
+      keep_B <- !missing_BOLD
       if (real_retest) {
         warning('There are ', sum(missing_BOLD), ' pairs of `BOLD` and `BOLD2` with at least one non-existent scan. These pairs will be excluded from prior estimation.')
-        BOLD <- BOLD[!missing_BOLD]
-        BOLD2 <- BOLD[!missing_BOLD]
+        BOLD <- BOLD[keep_B]
+        BOLD2 <- BOLD2[keep_B]
       } else {
         warning('There are ', sum(missing_BOLD), ' scans in `BOLD` that do not exist. These scans will be excluded from prior estimation.')
-        BOLD <- BOLD[!missing_BOLD]
+        BOLD <- BOLD[keep_B]
       }
+
+      # Subset `nuisance` and `scrub` too (must happen before their length checks).
+      subset_by_subj <- function(x) {
+        if (is.null(x)) { return(NULL) }
+        if (real_retest) {
+          stopifnot(is.list(x) && length(x)==2)
+          lapply(x, function(y) {
+            if (is.null(y)) { return(NULL) }
+            stopifnot(length(y) == length(keep_B))
+            y[keep_B]
+          })
+        } else {
+          stopifnot(length(x) == length(keep_B))
+          x[keep_B]
+        }
+      }
+      nuisance <- subset_by_subj(nuisance)
+      scrub <- subset_by_subj(scrub)
     }
   }
   nN <- length(BOLD)
@@ -803,7 +820,7 @@ estimate_prior <- function(
       stopifnot(is.list(nuisance[[1]]) && length(nuisance[[1]])==nN)
       stopifnot(is.list(nuisance[[2]]) && length(nuisance[[2]])==nN)
       # Remake into a length-nN list of length-2 lists
-      nuisance <- lapply(seq(nN), function(x){ list(nuisance[[1]][[nN]], nuisance[[2]][[nN]]) })
+      nuisance <- lapply(seq(nN), function(nn){ list(nuisance[[1]][[nn]], nuisance[[2]][[nn]]) })
     }
   }
 
@@ -815,7 +832,7 @@ estimate_prior <- function(
       stopifnot(is.list(scrub[[1]]) && length(scrub[[1]])==nN)
       stopifnot(is.list(scrub[[2]]) && length(scrub[[2]])==nN)
       # Remake into a length-nN list of length-2 lists
-      scrub <- lapply(seq(nN), function(x){ list(scrub[[1]][[nN]], scrub[[2]][[nN]]) })
+      scrub <- lapply(seq(nN), function(nn){ list(scrub[[1]][[nn]], scrub[[2]][[nn]]) })
     }
   }
 
@@ -926,7 +943,7 @@ estimate_prior <- function(
   if (FORMAT == "NIFTI") {
     if (is.null(mask)) { stop("`mask` is required.") }
     if (is.character(mask)) { mask <- RNifti::readNifti(mask); mask <- array(as.logical(mask), dim=dim(mask)) }
-    if (dim(mask)[length(dim(mask))] == 1) { mask <- array(mask, dim=dim(mask)[length(dim(mask))-1]) }
+    if (dim(mask)[length(dim(mask))] == 1) { mask <- array(mask, dim=dim(mask)[-length(dim(mask))]) }
     if (is.numeric(mask)) {
       message("Coercing `mask` to a logical array.\n")
       if (!fMRItools::all_binary(mask)) {
@@ -1130,9 +1147,6 @@ estimate_prior <- function(
     }
     sigma_sq0 <- abind::abind(lapply(q, `[[`, "sigma_sq"), along=2)
 
-
-    doParallel::stopImplicitCluster()
-
   } else {
     # Initialize output.
     DR_ok <- rep(FALSE, nN)
@@ -1257,25 +1271,48 @@ estimate_prior <- function(
     FC0 <- array(NA, dim=c(nM, nN, nL2, nL2))
     if (verbose ) { cat("\nUpdating timecourses for FC estimate.\n") }
 
+    # Begin: written by Claude (fixed a bug) ----------------------
+    # [TO DO]: verify!
+    # (What Claude said about previous version):
+    # BOLDkeep is saved per subject with that subject's mask2 rows removed.
+    # prior$mean has the group-level mask2 rows (nVm).
+    # If any subject dropped locations, dual_reg gets mismatched BOLD and GICA.
+    # prior$mean can also contain NAs, which dual_reg rejects.
+    # You need to subset prior$mean to each subject's mask, or save the subject mask alongside BOLDkeep.
+
+    # Full-length (nV) template rows; NA where group-masked out.
+    GICA_full <- if (use_mask2) {
+      fMRItools::unmask_mat(prior$mean, mask=mask2)
+    } else {
+      prior$mean
+    }
+
     for (ii in seq(nN)) {
       if (!DR_ok[ii]) { next }
       BOLD_old <- readRDS(file.path(FC_updateA_path, ii, "BOLDkeep.rds"))
-      A_updated_ii_1 <- fMRItools::dual_reg(
-        BOLD = BOLD_old$test,
-        GICA=prior$mean, scale_by="none", hpf=0, GSR=FALSE
+
+      # Rows this subject kept, then drop rows where prior mean is NA.
+      G_ii <- GICA_full[BOLD_old$mask2,,drop=FALSE]
+      ok <- stats::complete.cases(G_ii)
+      G_ii <- G_ii[ok,,drop=FALSE]
+      Bt <- BOLD_old$test[ok,,drop=FALSE]
+      Br <- BOLD_old$retest[ok,,drop=FALSE]
+
+      A1 <- fMRItools::dual_reg(
+        BOLD=Bt, GICA=G_ii, scale_by="none", hpf=0, GSR=FALSE
       )$A
-      A_updated_ii_2 <- fMRItools::dual_reg(
-        BOLD = BOLD_old$retest,
-        GICA=prior$mean, scale_by="none", hpf=0, GSR=FALSE
+      A2 <- fMRItools::dual_reg(
+        BOLD=Br, GICA=G_ii, scale_by="none", hpf=0, GSR=FALSE
       )$A
-      FC0[1,ii,,] <- cov(A_updated_ii_1[,inds2,drop=FALSE])
-      FC0[2,ii,,] <- cov(A_updated_ii_2[,inds2,drop=FALSE])
+      FC0[1,ii,,] <- cov(A1[,inds2,drop=FALSE])
+      FC0[2,ii,,] <- cov(A2[,inds2,drop=FALSE])
     }
+    # End: written by Claude (fixed a bug) ------------------------
 
     # Delete networks not in user-provided `inds`
     #   subset `DR0`
     DR0 <- array(DR0, dim=c(nM, nN, nL, nVm)) # Undo vectorize
-    DR0 <- DR0[,,nL2,,drop=FALSE]
+    DR0 <- DR0[,,inds2,,drop=FALSE]
     DR0 <- array(DR0, dim=c(nM, nN, nL2*nVm)) # Redo vectorize
     #   use provided `inds` rather than all networks
     nL <- nL2; rm(nL2)
@@ -1449,7 +1486,7 @@ estimate_prior.cifti <- function(
     GSR=GSR,
     scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
     scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
-    QR=Q2, Q2_max=Q2_max,
+    Q2=Q2, Q2_max=Q2_max,
     # end: dual_reg2 stuff -------------------------------
     covariates=covariates,
     brainstructures=brainstructures, 
@@ -1496,7 +1533,7 @@ estimate_prior.gifti <- function(
     GSR=GSR,
     scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
     scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
-    QR=Q2, Q2_max=Q2_max,
+    Q2=Q2, Q2_max=Q2_max,
     # end: dual_reg2 stuff -------------------------------
     covariates=covariates,
     brainstructures=brainstructures, 
@@ -1543,7 +1580,7 @@ estimate_prior.nifti <- function(
     GSR=GSR,
     scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
     scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
-    QR=Q2, Q2_max=Q2_max,
+    Q2=Q2, Q2_max=Q2_max,
     # end: dual_reg2 stuff -------------------------------
     covariates=covariates,
     brainstructures=brainstructures, 

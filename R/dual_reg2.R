@@ -448,6 +448,7 @@ dual_reg2 <- function(
         test = if (!retest) { BOLDh1 } else { BOLD },
         retest = if (!retest) { BOLDh2 } else { BOLD2 }
       )
+      if (use_mask2) { BOLDkeep$mask2 <- mask2 }
       saveRDS(BOLDkeep, file.path(FC_updateA_path, "BOLDkeep.rds"))
     }
 
