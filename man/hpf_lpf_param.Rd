@@ -9,7 +9,7 @@ data during pre-processing, in Hertz. Set either to \code{NULL} to disable.
 Default: \code{0.01} Hz highpass filter, and \code{NULL} for the lowpass
 filter (disabled). Highpass filtering is accomplished by nuisance regression
 of discrete cosine transform (DCT) bases. Lowpass filtering is accomplished
-by a non-linear filter: \code{\link[fsl_bptf]}.
+by a non-linear filter: \code{\link[fMRItools]{fsl_bptf}}.
 
 Note the \code{TR} argument is required for temporal filtering. If
 \code{TR} is not provided, an error will be raised if \code{hpf} or
