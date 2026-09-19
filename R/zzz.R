@@ -23,9 +23,9 @@
 #' @return The message (length 1 character vector)
 welcome_msg <- function() {
   paste0(
-    "\n*****************************************************************\n",
-    "*  Welcome to BayesBrainMap! Please cite our papers in your work:*\n",
-    "*                  > citation('BayesBrainMap')                   *",
-    "\n*****************************************************************"
+    "\n******************************************************************\n",
+    "* Welcome to BayesBrainMap! Please cite our papers in your work: *\n",
+    "*                 > citation('BayesBrainMap')                    *",
+    "\n******************************************************************"
   )
 }

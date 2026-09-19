@@ -55,7 +55,7 @@ importFrom(Matrix,
 )
 importFrom(SQUAREM,squarem)
 importFrom(abind,abind)
-importFrom(fMRIscrub,flags_to_nuis_spikes)
+importFrom(fMRIscrub,flags2spikes)
 importFrom(fMRItools,
   PCA,
   UT2mat,
