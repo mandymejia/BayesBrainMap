@@ -437,22 +437,18 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #'  calculating dual regression, not before. This is because removing the networks
 #'  prior to dual regression would leave unmodelled signals in the data, which
 #'  could bias the priors.
-#' @inheritParams scale_Param
-#' @param scale_sm_surfL,scale_sm_surfR,scale_sm_FWHM Only applies if
-#'  \code{scale=="local"} and \code{BOLD} represents surface data (CIFTI or
-#'  GIFTI). To smooth the mean estimates used for local scaling,
-#'  provide the surface geometries along which to smooth as GIFTI geometry files
-#'  or \code{"surf"} objects, as well as the smoothing FWHM (default: \code{2}).
-#'
-#'  If \code{scale_sm_FWHM==0}, no smoothing of the local means will be performed.
-#'
-#'  If \code{scale_sm_FWHM>0} but \code{scale_sm_surfL} and
-#'  \code{scale_sm_surfR} are not provided, the default inflated surfaces from
-#'  the HCP will be used.
+#' @inheritParams scale_by_Param
+#' @inheritParams scale_sm_FWHM_Param
+#' @param scale_sm_surfL,scale_sm_surfR Required only for "local" smoothing 
+#'  (see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the surface
+#'  geometries along which to smooth, as GIFTI geometry files or 
+#'  \code{ciftiTools} \code{"surf"} objects. The resolutions should match with
+#'  those of the \code{BOLD} data.
 #'
 #'  To create a \code{"surf"} object from data, see
-#'  \code{\link[ciftiTools]{make_surf}}. The surfaces must be in the same
-#'  resolution as the \code{BOLD} data.
+#'  \code{\link[ciftiTools]{make_surf}}.
+#' 
+#'  If not provided, the fs_LR "midthickness" surfaces will be used.
 #' @param nuisance (Optional) Nuisance matrices to regress from the BOLD data.
 #'  Should be a list of matrices, with time along the rows and nuisance signals
 #'  along the columns, where each entry corresponds to a \code{BOLD} session;
@@ -595,45 +591,34 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #' BOLD <- list(B1=mS, B2=mS, B3=mS)
 #' BOLD <- lapply(BOLD, function(x){x + rnorm(nV*nT, mean = 100, sd=.05)})
 #' template <- mU
-#' estimate_prior(BOLD=BOLD, template=mU, FC_nSamp=2000, usePar=FALSE)
+#' estimate_prior(BOLD=BOLD, template=mU, FC_nSamp=2000, scale_sm_FWHM=Inf)
 #'
 #' \dontrun{
 #'  estimate_prior(
 #'    run1_cifti_fnames, run2_cifti_fnames,
 #'    gICA_cifti_fname, brainstructures="all",
-#'    scale="global", TR=0.71, Q2=NULL, varTol=10,
+#'    scale_sm_FWHM=Inf, TR=0.71, Q2=NULL, varTol=10,
 #'    usePar=FALSE
 #'  )
 #' }
 estimate_prior <- function(
   BOLD, BOLD2=NULL,
   template,
-  mask=NULL,
-  inds=NULL,
-  scale=c("local", "global", "none"),
-  scale_sm_surfL=NULL,
-  scale_sm_surfR=NULL,
-  scale_sm_FWHM=4,
-  nuisance=NULL,
-  scrub=NULL,
-  drop_first=0,
-  hpf=0,
-  TR=NULL,
+  mask=NULL, inds=NULL,
+  # dual_reg2 stuff ------------------------------------
+  drop_first=0, nuisance=NULL, scrub=NULL,
+  TR=NULL, hpf=NULL, #lpf=NULL,
   GSR=FALSE,
-  Q2=0,
-  Q2_max=NULL,
+  scale_by=c("mean", "sd", "none"),
+  scale_sm_FWHM=4, scale_sm_surfL=NULL, scale_sm_surfR=NULL,
+  Q2=0, Q2_max=NULL,
+  # end: dual_reg2 stuff -------------------------------
   covariates=NULL,
   brainstructures="all",
   resamp_res=NULL,
-  keep_S=FALSE,
-  keep_FC=FALSE,
-  FC=TRUE,
-  FC_nPivots=100,
-  FC_nSamp=50000,
-  FC_updateA=FALSE,
-  varTol=1e-6,
-  maskTol=.1,
-  missingTol=.1,
+  keep_S=FALSE, keep_FC=FALSE,
+  FC=TRUE, FC_nPivots=100, FC_nSamp=50000, FC_updateA=FALSE,
+  varTol=1e-6, maskTol=.1, missingTol=.1,
   usePar=FALSE,
   wb_path=NULL,
   verbose=TRUE) {
@@ -642,16 +627,14 @@ estimate_prior <- function(
 
   # Simple argument checks.
   if (missing(template)) { stop("Please provide `template`.") }
-  if (is.null(scale) || isFALSE(scale)) { scale <- "none" }
-  if (isTRUE(scale)) {
-    warning(
-      "Setting `scale='global'`. Use `'global'` or `'local'` ",
-      "instead of `TRUE`, which has been deprecated."
-    )
-    scale <- "global"
-  }
-  scale <- match.arg(scale, c("local", "global", "none"))
+  scale_by <- match.arg(scale_by, c("mean", "sd", "none"))
   stopifnot(fMRItools::is_1(scale_sm_FWHM, "numeric"))
+  ## `scale_sm` defines what kind of smoothing's being done.
+  scale_sm <- switch(
+    as.character(scale_sm_FWHM), 
+    "0"="none", "Inf"="global", "local"
+  )
+  if (scale_sm=="local") { stopifnot(scale_sm_FWHM > 0) }
   if (is.null(hpf)) { hpf <- 0 }
   if (is.null(TR)) {
     if (hpf==.01) {
@@ -802,8 +785,8 @@ estimate_prior <- function(
   nN <- length(BOLD)
 
   # Check `scale_sm_FWHM`
-  if (scale_sm_FWHM !=0 && FORMAT %in% c("NIFTI", "MATRIX")) {
-    scale_sm_FWHM <- 0
+  if (scale_sm == "local" && FORMAT %in% c("NIFTI", "MATRIX")) {
+    scale_sm_FWHM <- 0; scale_sm <- "none"
     if (FORMAT == "NIFTI") {
       # [TO DO] make this available
       warning( "Setting `scale_sm_FWHM == 0` (Scale smoothing not yet available for volumetric data. Contact developer.).\n")
@@ -1098,13 +1081,11 @@ estimate_prior <- function(
         template=template, template_parc_table=template_parc_table,
         mask=mask,
         keepA=FC,
+        drop_first=drop_first, nuisance=nuisance[[ii]], scrub=scrub[[ii]],
+        TR=TR, hpf=hpf,
         GSR=GSR,
-        scale=scale,
+        scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
         scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
-        scale_sm_FWHM=scale_sm_FWHM,
-        nuisance=nuisance[[ii]],
-        scrub=scrub[[ii]], drop_first=drop_first,
-        hpf=hpf, TR=TR,
         Q2=Q2, Q2_max=Q2_max,
         brainstructures=brainstructures, resamp_res=resamp_res,
         FC_updateA_path=FC_updateA_path_ii,
@@ -1184,13 +1165,11 @@ estimate_prior <- function(
         template=template, template_parc_table=template_parc_table,
         mask=mask,
         keepA=FC,
+        drop_first=drop_first, nuisance=nuisance[[ii]], scrub=scrub[[ii]],
+        TR=TR, hpf=hpf,
         GSR=GSR,
-        scale=scale,
+        scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
         scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
-        scale_sm_FWHM=scale_sm_FWHM,
-        nuisance=nuisance[[ii]],
-        scrub=scrub[[ii]], drop_first=drop_first,
-        hpf=hpf, TR=TR,
         Q2=Q2, Q2_max=Q2_max,
         brainstructures=brainstructures, resamp_res=resamp_res,
         FC_updateA_path=FC_updateA_path_ii,
@@ -1283,11 +1262,11 @@ estimate_prior <- function(
       BOLD_old <- readRDS(file.path(FC_updateA_path, ii, "BOLDkeep.rds"))
       A_updated_ii_1 <- fMRItools::dual_reg(
         BOLD = BOLD_old$test,
-        GICA=prior$mean, scale="none", hpf=0, GSR=FALSE
+        GICA=prior$mean, scale_by="none", hpf=0, GSR=FALSE
       )$A
       A_updated_ii_2 <- fMRItools::dual_reg(
         BOLD = BOLD_old$retest,
-        GICA=prior$mean, scale="none", hpf=0, GSR=FALSE
+        GICA=prior$mean, scale_by="none", hpf=0, GSR=FALSE
       )$A
       FC0[1,ii,,] <- cov(A_updated_ii_1[,inds2,drop=FALSE])
       FC0[2,ii,,] <- cov(A_updated_ii_2[,inds2,drop=FALSE])
@@ -1382,9 +1361,11 @@ estimate_prior <- function(
     FC=FC, FC_nPivots=FC_nPivots, FC_nSamp=FC_nSamp,
     num_subjects=nN, num_visits=nM,
     inds=inds, nQ=nQ,
-    GSR=GSR, scale=scale,
-    scale_sm_FWHM=scale_sm_FWHM,
-    hpf=hpf, TR=TR,
+    drop_first=drop_first,
+    TR=TR, hpf=hpf,
+    GSR=GSR,
+    scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
+    scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
     Q2=Q2, Q2_max=Q2_max,
     covariate_names=covariate_names,
     brainstructures=brainstructures, resamp_res=resamp_res,
@@ -1438,34 +1419,43 @@ estimate_prior <- function(
 #'
 estimate_prior.cifti <- function(
   BOLD, BOLD2=NULL,
-  template, inds=NULL,
-  scale=c("local", "global", "none"),
-  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=4,
-  nuisance=NULL,
-  scrub=NULL,
-  drop_first=0,
-  hpf=0, TR=NULL,
+  template,
+  mask=NULL, inds=NULL,
+  # dual_reg2 stuff ------------------------------------
+  drop_first=0, nuisance=NULL, scrub=NULL,
+  TR=NULL, hpf=NULL, #lpf=NULL,
   GSR=FALSE,
+  scale_by=c("mean", "sd", "none"),
+  scale_sm_FWHM=4, scale_sm_surfL=NULL, scale_sm_surfR=NULL,
   Q2=0, Q2_max=NULL,
-  brainstructures="all", resamp_res=resamp_res,
+  # end: dual_reg2 stuff -------------------------------
+  covariates=NULL,
+  brainstructures="all",
+  resamp_res=NULL,
   keep_S=FALSE, keep_FC=FALSE,
-  FC=TRUE,
+  FC=TRUE, FC_nPivots=100, FC_nSamp=50000, FC_updateA=FALSE,
   varTol=1e-6, maskTol=.1, missingTol=.1,
-  usePar=FALSE, wb_path=NULL,
+  usePar=FALSE,
+  wb_path=NULL,
   verbose=TRUE) {
 
   estimate_prior(
     BOLD=BOLD, BOLD2=BOLD2,
-    template=template, inds=inds,
-    scale=scale, scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
-    scale_sm_FWHM=scale_sm_FWHM,
-    nuisance=nuisance, scrub=scrub, drop_first=drop_first,
-    hpf=hpf, TR=TR,
+    template=template, 
+    mask=mask, inds=inds,
+    # dual_reg2 stuff ------------------------------------
+    drop_first=drop_first, nuisance=nuisance, scrub=scrub,
+    TR=TR, hpf=hpf, #lpf=lpf,
     GSR=GSR,
-    Q2=Q2, Q2_max=Q2_max,
-    brainstructures=brainstructures, resamp_res=resamp_res,
-    keep_S=keep_S,
-    FC=FC,
+    scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
+    scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
+    QR=Q2, Q2_max=Q2_max,
+    # end: dual_reg2 stuff -------------------------------
+    covariates=covariates,
+    brainstructures=brainstructures, 
+    resamp_res=resamp_res,
+    keep_S=keep_S, keep_FC=keep_FC,
+    FC=FC, FC_nPivots=FC_nPivots, FC_nSamp=FC_nSamp, FC_updateA=FC_updateA,
     varTol=varTol, maskTol=maskTol, missingTol=missingTol,
     usePar=usePar, wb_path=wb_path,
     verbose=verbose
@@ -1476,34 +1466,43 @@ estimate_prior.cifti <- function(
 #'
 estimate_prior.gifti <- function(
   BOLD, BOLD2=NULL,
-  template, inds=NULL,
-  scale=c("local", "global", "none"),
-  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=4,
-  nuisance=NULL,
-  scrub=NULL,
-  drop_first=0,
-  hpf=0, TR=NULL,
+  template,
+  mask=NULL, inds=NULL,
+  # dual_reg2 stuff ------------------------------------
+  drop_first=0, nuisance=NULL, scrub=NULL,
+  TR=NULL, hpf=NULL, #lpf=NULL,
   GSR=FALSE,
+  scale_by=c("mean", "sd", "none"),
+  scale_sm_FWHM=4, scale_sm_surfL=NULL, scale_sm_surfR=NULL,
   Q2=0, Q2_max=NULL,
+  # end: dual_reg2 stuff -------------------------------
+  covariates=NULL,
   brainstructures="all",
-  keep_S=FALSE,keep_FC=FALSE,
-  FC=TRUE,
+  resamp_res=NULL,
+  keep_S=FALSE, keep_FC=FALSE,
+  FC=TRUE, FC_nPivots=100, FC_nSamp=50000, FC_updateA=FALSE,
   varTol=1e-6, maskTol=.1, missingTol=.1,
-  usePar=FALSE, wb_path=NULL,
+  usePar=FALSE,
+  wb_path=NULL,
   verbose=TRUE) {
 
   estimate_prior(
     BOLD=BOLD, BOLD2=BOLD2,
-    template=template, inds=inds,
-    scale=scale, scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
-    scale_sm_FWHM=scale_sm_FWHM,
-    nuisance=nuisance, scrub=scrub, drop_first=drop_first,
-    hpf=hpf, TR=TR,
+    template=template, 
+    mask=mask, inds=inds,
+    # dual_reg2 stuff ------------------------------------
+    drop_first=drop_first, nuisance=nuisance, scrub=scrub,
+    TR=TR, hpf=hpf, #lpf=lpf,
     GSR=GSR,
-    Q2=Q2, Q2_max=Q2_max,
-    brainstructures=brainstructures,
-    keep_S=keep_S,
-    FC=FC,
+    scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
+    scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
+    QR=Q2, Q2_max=Q2_max,
+    # end: dual_reg2 stuff -------------------------------
+    covariates=covariates,
+    brainstructures=brainstructures, 
+    resamp_res=resamp_res,
+    keep_S=keep_S, keep_FC=keep_FC,
+    FC=FC, FC_nPivots=FC_nPivots, FC_nSamp=FC_nSamp, FC_updateA=FC_updateA,
     varTol=varTol, maskTol=maskTol, missingTol=missingTol,
     usePar=usePar, wb_path=wb_path,
     verbose=verbose
@@ -1514,35 +1513,45 @@ estimate_prior.gifti <- function(
 #'
 estimate_prior.nifti <- function(
   BOLD, BOLD2=NULL,
-  template, inds=NULL,
-  scale=c("local", "global", "none"),
-  nuisance=NULL,
-  scrub=NULL,
-  drop_first=0,
-  hpf=0, TR=NULL,
+  template,
+  mask=NULL, inds=NULL,
+  # dual_reg2 stuff ------------------------------------
+  drop_first=0, nuisance=NULL, scrub=NULL,
+  TR=NULL, hpf=NULL, #lpf=NULL,
   GSR=FALSE,
+  scale_by=c("mean", "sd", "none"),
+  scale_sm_FWHM=4, scale_sm_surfL=NULL, scale_sm_surfR=NULL,
   Q2=0, Q2_max=NULL,
-  mask=NULL,
-  keep_S=FALSE,keep_FC=FALSE,
-  FC=TRUE,
+  # end: dual_reg2 stuff -------------------------------
+  covariates=NULL,
+  brainstructures="all",
+  resamp_res=NULL,
+  keep_S=FALSE, keep_FC=FALSE,
+  FC=TRUE, FC_nPivots=100, FC_nSamp=50000, FC_updateA=FALSE,
   varTol=1e-6, maskTol=.1, missingTol=.1,
-  usePar=FALSE, wb_path=NULL,
+  usePar=FALSE,
+  wb_path=NULL,
   verbose=TRUE) {
 
   estimate_prior(
     BOLD=BOLD, BOLD2=BOLD2,
-    template=template, inds=inds,
-    scale=scale,
-    nuisance=nuisance, scrub=scrub, drop_first=drop_first,
-    hpf=hpf, TR=TR,
+    template=template, 
+    mask=mask, inds=inds,
+    # dual_reg2 stuff ------------------------------------
+    drop_first=drop_first, nuisance=nuisance, scrub=scrub,
+    TR=TR, hpf=hpf, #lpf=lpf,
     GSR=GSR,
-    Q2=Q2, Q2_max=Q2_max,
-    mask=mask,
-    keep_S=keep_S,
-    FC=FC,
+    scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
+    scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
+    QR=Q2, Q2_max=Q2_max,
+    # end: dual_reg2 stuff -------------------------------
+    covariates=covariates,
+    brainstructures=brainstructures, 
+    resamp_res=resamp_res,
+    keep_S=keep_S, keep_FC=keep_FC,
+    FC=FC, FC_nPivots=FC_nPivots, FC_nSamp=FC_nSamp, FC_updateA=FC_updateA,
     varTol=varTol, maskTol=maskTol, missingTol=missingTol,
     usePar=usePar, wb_path=wb_path,
     verbose=verbose
   )
 }
-

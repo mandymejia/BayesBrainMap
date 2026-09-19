@@ -13,10 +13,10 @@ estimate_prior(
   template,
   mask = NULL,
   inds = NULL,
-  scale = c("local", "global", "none"),
+  scale_by = c("mean", "sd", "none"),
+  scale_sm_FWHM = 4,
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  scale_sm_FWHM = 4,
   nuisance = NULL,
   scrub = NULL,
   drop_first = 0,
@@ -47,10 +47,10 @@ estimate_prior.cifti(
   BOLD2 = NULL,
   template,
   inds = NULL,
-  scale = c("local", "global", "none"),
+  scale_by = c("mean", "sd", "none"),
+  scale_sm_FWHM = 4,
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  scale_sm_FWHM = 4,
   nuisance = NULL,
   scrub = NULL,
   drop_first = 0,
@@ -77,10 +77,10 @@ estimate_prior.gifti(
   BOLD2 = NULL,
   template,
   inds = NULL,
-  scale = c("local", "global", "none"),
+  scale_by = c("mean", "sd", "none"),
+  scale_sm_FWHM = 4,
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  scale_sm_FWHM = 4,
   nuisance = NULL,
   scrub = NULL,
   drop_first = 0,
@@ -106,7 +106,10 @@ estimate_prior.nifti(
   BOLD2 = NULL,
   template,
   inds = NULL,
-  scale = c("local", "global", "none"),
+  scale_by = c("mean", "sd", "none"),
+  scale_sm_FWHM = 4,
+  scale_sm_surfL = NULL,
+  scale_sm_surfR = NULL,
   nuisance = NULL,
   scrub = NULL,
   drop_first = 0,
@@ -170,26 +173,29 @@ calculating dual regression, not before. This is because removing the networks
 prior to dual regression would leave unmodelled signals in the data, which
 could bias the priors.}
 
-\item{scale}{\code{"local"} (default), \code{"global"}, or \code{"none"}.
-Local scaling will divide each data location's time series by its mean,
-after centering. Global scaling will divide the entire data matrix by the
-overall mean. Note: If input data has already been centered, must set scale = "none".}
+\item{scale_by}{Scale the BOLD at each voxel based on either its
+\code{"mean"} (default), or its \code{"sd"}. Mean scaling cannot be used if
+the \code{BOLD} have already been de-meaned.}
 
-\item{scale_sm_surfL, scale_sm_surfR, scale_sm_FWHM}{Only applies if
-\code{scale=="local"} and \code{BOLD} represents surface data (CIFTI or
-GIFTI). To smooth the mean estimates used for local scaling,
-provide the surface geometries along which to smooth as GIFTI geometry files
-or \code{"surf"} objects, as well as the smoothing FWHM (default: \code{2}).
+\item{scale_sm_FWHM}{Full width at half maximum (FWHM) for smoothing the
+estimates of scale across brain locations (see \code{scale_by}), to reduce
+the variance of the estimates. Set to \code{0} to disable smoothing, or
+\code{Inf} for "global" smoothing (estimate and use one measure of scale
+across the entire brain). Otherwise, for "local" smoothing, this should be a
+positive number. Note that local smoothing is only available for surface
+data input (CIFTI or GIFTI \code{BOLD}). Default: local smoothing with a
+FWHM of \code{4}.}
 
-If \code{scale_sm_FWHM==0}, no smoothing of the local means will be performed.
-
-If \code{scale_sm_FWHM>0} but \code{scale_sm_surfL} and
-\code{scale_sm_surfR} are not provided, the default inflated surfaces from
-the HCP will be used.
+\item{scale_sm_surfL, scale_sm_surfR}{Required only for "local" smoothing
+(see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the surface
+geometries along which to smooth, as GIFTI geometry files or
+\code{ciftiTools} \code{"surf"} objects. The resolutions should match with
+those of the \code{BOLD} data.
 
 To create a \code{"surf"} object from data, see
-\code{\link[ciftiTools]{make_surf}}. The surfaces must be in the same
-resolution as the \code{BOLD} data.}
+\code{\link[ciftiTools]{make_surf}}.
+
+If not provided, the fs_LR "midthickness" surfaces will be used.}
 
 \item{nuisance}{(Optional) Nuisance matrices to regress from the BOLD data.
 Should be a list of matrices, with time along the rows and nuisance signals
@@ -225,7 +231,7 @@ adjusted automatically if \code{drop_first>0}.}
 BOLD session. Default: \code{0}.}
 
 \item{hpf}{The frequency at which to apply a highpass filter to the data
-during pre-processing, in Hertz. Default: \code{0} Hz (disabled). If the
+during pre-processing, in Hertz. Default: \code{NULL} (disabled). If the
 data has not already been highpass filtered, a recommended filter value is
 \code{.01} Hz.
 The highpass filter serves to detrend the data, since low-frequency
@@ -233,7 +239,7 @@ variance is associated with noise. Highpass filtering is accomplished by
 nuisance regression of discrete cosine transform (DCT) bases.
 
 Note the \code{TR} argument is required for highpass filtering. If
-\code{TR} is not provided, \code{hpf} will be ignored.}
+\code{TR} is not provided, an error will be raised if \code{hpf} is set.}
 
 \item{TR}{The temporal resolution of the data, i.e. the time between volumes,
 in seconds. \code{TR} is required for detrending with \code{hpf}.}
@@ -356,13 +362,13 @@ mS <- mU \%*\% diag(seq(nQ, 1)) \%*\% matrix(rnorm(nQ*nT), nrow=nQ)
 BOLD <- list(B1=mS, B2=mS, B3=mS)
 BOLD <- lapply(BOLD, function(x){x + rnorm(nV*nT, mean = 100, sd=.05)})
 template <- mU
-estimate_prior(BOLD=BOLD, template=mU, FC_nSamp=2000, usePar=FALSE)
+estimate_prior(BOLD=BOLD, template=mU, FC_nSamp=2000, scale_sm_FWHM=Inf)
 
 \dontrun{
  estimate_prior(
    run1_cifti_fnames, run2_cifti_fnames,
    gICA_cifti_fname, brainstructures="all",
-   scale="global", TR=0.71, Q2=NULL, varTol=10,
+   scale_sm_FWHM=Inf, TR=0.71, Q2=NULL, varTol=10,
    usePar=FALSE
  )
 }
