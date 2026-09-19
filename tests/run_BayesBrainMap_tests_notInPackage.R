@@ -42,6 +42,16 @@ pr_cii <- estimate_prior(
   brainstructures=c("left", "right")
 )
 
+pr_cii2 <- estimate_prior(
+  cii_fnames[seq(3)], template = template_fname["cii"], TR=.72, hpf=0, FC=FALSE,
+  brainstructures=c("left", "right"), scale_by="sd"
+)
+
+pr_cii3 <- estimate_prior(
+  cii_fnames[seq(3)], template = template_fname["cii"], TR=.72, hpf=0, FC=FALSE,
+  brainstructures=c("left", "right"), scale_by="none"
+)
+
 xii <- read_cifti(cii_fnames[1], brainstructures = c("left", "right"))
 xii <- move_from_mwall(xii)
 gparc <- resample_cifti(load_parc(), resamp_res=4000)
@@ -163,13 +173,13 @@ plot(pr_cii)#; plot(pr_gii)
 ### Test 2: with various parameters changed ----
 pr_cii <- estimate_prior(
   cii_fnames[seq(3)], cii_fnames[seq(4,6)], template = template_fname["cii"],
-  inds=c(2,7,11,90), scale="global", scale_sm_FWHM=5,
+  inds=c(2,7,11,90), scale_sm_FWHM=Inf,
   maskTol=.9, brainstructures="left", wb_path="~/Applications",
   usePar=TRUE, FC=TRUE, varTol=10000
 )
 # pr_gii <- estimate_prior(
 #   giiL_fnames[seq(3)], giiL_fnames[seq(4,6)], template = template_fname["gii"],
-#   inds=c(2,7,11,90), scale="global", scale_sm_FWHM=5,
+#   inds=c(2,7,11,90), scale_sm_FWHM=Inf, scale_sm_FWHM=5,
 #   maskTol=.9, wb_path="~/Applications",
 #   usePar=TRUE, FC=TRUE, varTol=10000
 # )
@@ -198,15 +208,15 @@ close3d(); close3d(); close3d(); close3d()
 # `export_prior` and `fit_BBM`: check for same result w/ different file types -----------------
 pr_cii <- estimate_prior(
   cii_fnames[seq(3)], brainstructures="left", template = template_fname["cii"], inds=seq(3),
-  scale="global"
+  scale_sm_FWHM=Inf
 )
 # pr_gii <- estimate_prior(
 #   giiL_fnames[seq(3)], template = template_fname["gii"], inds=seq(3),
-#   scale="global"
+#   scale_sm_FWHM=Inf
 # )
 # pr_rds <- estimate_prior(
 #   rds_fnames[seq(3)], template = template_fname["rds"], inds=seq(3),
-#   scale="global"
+#   scale_sm_FWHM=Inf
 # )
 
 ### `export_prior` ----
@@ -308,7 +318,7 @@ cii[[4]]$data$cortex_left[,] <- NA
 tm <- estimate_prior(
   cii, template=read_cifti(template_fname["cii"], brainstructures="left"),
   FC=FALSE,
-  scale="global", inds=c(1,4,7,11), maskTol = .5, missingTol=.5
+  scale_sm_FWHM=Inf, inds=c(1,4,7,11), maskTol = .5, missingTol=.5
 )
 tm
 rm(cii)
@@ -316,10 +326,10 @@ plot(tm, idx=3)
 close3d(); close3d()
 cii <- read_cifti(cii_fnames[5], brainstructures="left")
 #squarem1 error ... ?
-# fit_BBM(cii, tm, brainstructures="left", scale="global", maxiter=7, Q2=0, spatial_model = TRUE)
+# fit_BBM(cii, tm, brainstructures="left", scale_sm_FWHM=Inf, maxiter=7, Q2=0, spatial_model = TRUE)
 cii$data$cortex_left[33,] <- mean(cii$data$cortex_left[33,])
 bMap <- testthat::expect_error( # Not supported yet: flat or NA voxels in data, after applying prior mask, with spatial model.
-  fit_BBM(cii, tm, brainstructures="left", scale="global", maxiter=7, Q2=0, spatial_model = TRUE, TR=.72)
+  fit_BBM(cii, tm, brainstructures="left", scale_sm_FWHM=Inf, maxiter=7, Q2=0, spatial_model = TRUE, TR=.72)
 )
 
 cii <- lapply(cii_fnames[seq(4)], read_xifti, brainstructures="right")
@@ -337,13 +347,13 @@ tm <- estimate_prior(
 tm <- estimate_prior(
   cii,
   template=as.matrix(read_cifti(template_fname["cii"], brainstructures="right")),
-  scale="global", inds=c(1,4,7,11),
+  scale_sm_FWHM=Inf, inds=c(1,4,7,11),
 )
 tm2 <- estimate_prior(
   lapply(cii, function(x){as.matrix(x)[,seq(600)]}),
   lapply(cii, function(x){as.matrix(x)[,seq(601,1200)]}),
   template=as.matrix(read_cifti(template_fname["cii"], brainstructures="right")),
-  scale="global", inds=c(1,4,7,11),
+  scale_sm_FWHM=Inf, inds=c(1,4,7,11),
 )
 stopifnot(
   max(abs(do.call(c, tm$var_decomp) - do.call(c, tm2$var_decomp)), na.rm=TRUE) < 1e-8

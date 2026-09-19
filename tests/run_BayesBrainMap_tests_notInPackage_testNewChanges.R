@@ -122,13 +122,13 @@ pr_ciiC <- estimate_prior(
 ## w/o hpf v2 -----
 pr_ciiA <- estimate_prior(
   cii_fnames[seq(3)], template = template_fname["cii"], TR=.72, FC=FALSE,
-  brainstructures="right", drop_first=1, scale="global", GSR=TRUE,
+  brainstructures="right", drop_first=1, scale_sm_FWHM=Inf, GSR=TRUE,
   scrub=list(c(7, 17, 777), NULL, 5)
 )
 
 pr_ciiB <- estimate_prior(
   cii_fnames[seq(3)], template = template_fname["cii"], TR=.72, FC=FALSE,
-  brainstructures="right", scale="global", GSR=TRUE,
+  brainstructures="right", scale_sm_FWHM=Inf, GSR=TRUE,
   scrub=list(c(1, 7, 17, 777), 1, c(1,5))
 )
 
@@ -139,7 +139,7 @@ bold[[2]] <- select_xifti(bold[[2]], seq(2, 1200))
 bold[[3]] <- select_xifti(bold[[3]], c(seq(2,4), seq(6, 1200)))
 pr_ciiC <- estimate_prior(
   bold, template = template_fname["cii"], TR=.72, FC=FALSE,
-  brainstructures="right", scale="global", GSR=TRUE
+  brainstructures="right", scale_sm_FWHM=Inf, GSR=TRUE
 )
 
 # w/ BOLD2 -----
