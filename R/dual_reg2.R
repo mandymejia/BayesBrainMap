@@ -19,23 +19,8 @@
 #'  parcellation table here. Default: \code{NULL}.
 #' @param keepA Keep the resulting \strong{A} matrices, or only return the
 #'  \strong{S} matrices (default)?
-#' @inheritParams scale_Param
-#' @param scale_sm_surfL,scale_sm_surfR,scale_sm_FWHM Only applies if
-#'  \code{scale=="local"} and \code{BOLD} represents CIFTI-format data. To
-#'  smooth the standard deviation estimates used for local scaling, provide the
-#'  surface geometries along which to smooth as GIFTI geometry files or
-#'  \code{"surf"} objects, as well as the smoothing FWHM (default: \code{2}).
-#'
-#'  If \code{scale_sm_FWHM==0}, no smoothing of the local standard deviation
-#'  estimates will be performed.
-#'
-#'  If \code{scale_sm_FWHM>0} but \code{scale_sm_surfL} and
-#'  \code{scale_sm_surfR} are not provided, the default inflated surfaces from
-#'  the HCP will be used.
-#'
-#'  To create a \code{"surf"} object from data, see
-#'  \code{\link[ciftiTools]{make_surf}}. The surfaces must be in the same
-#'  resolution as the \code{BOLD} data.
+#' @param drop_first (Optional) Number of volumes to drop from the start of each
+#'  BOLD session. Default: \code{0}.
 #' @param nuisance (Optional) Nuisance matrix to regress from the BOLD data.
 #'  If \code{BOLD2} is provided, should be a length-2 list with the first entry
 #'  corresponding to \code{BOLD} and the second to \code{BOLD2}. If \code{NULL},
@@ -58,11 +43,22 @@
 #'  Note that indices are counted beginning with the first index in the
 #'  \code{BOLD} session irregardless of \code{drop_first}. The indices will be
 #'  adjusted automatically if \code{drop_first>0}.
-#' @param drop_first (Optional) Number of volumes to drop from the start of each
-#'  BOLD session. Default: \code{0}.
 #' @inheritParams TR_param
 #' @inheritParams hpf_param
+#' @inheritParams lpf_param
 #' @inheritParams GSR_Param
+#' @inheritParams scale_by_Param
+#' @inheritParams scale_sm_FWHM_Param
+#' @param scale_sm_surfL,scale_sm_surfR Required only for "local" smoothing
+#'  (see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the surface
+#'  geometries along which to smooth, as GIFTI geometry files or 
+#'  \code{ciftiTools} \code{"surf"} objects. The resolutions should match with
+#'  those of the \code{BOLD} data.
+#'
+#'  To create a \code{"surf"} object from data, see
+#'  \code{\link[ciftiTools]{make_surf}}.
+#' 
+#'  If not provided, the fs_LR "midthickness" surfaces will be used.
 #' @param brainstructures Only applies if the entries of \code{BOLD} are CIFTI file paths.
 #'  Character vector indicating which brain structure(s)
 #'  to obtain: \code{"left"} (left cortical surface), \code{"right"} (right
@@ -108,7 +104,7 @@
 #'  and \strong{A} matrices if \code{keepA}, or \code{NULL} if dual
 #'  regression was skipped due to too many masked data locations.
 #'
-#' @importFrom fMRItools dual_reg
+#' @importFrom fMRItools dual_reg norm_BOLD mask_BOLD
 #'
 #' @keywords internal
 dual_reg2 <- function(
@@ -117,14 +113,15 @@ dual_reg2 <- function(
   template, template_parc_table=NULL,
   mask=NULL,
   keepA=FALSE,
-  scale=c("local", "global", "none"),
-  scale_sm_surfL=NULL, scale_sm_surfR=NULL, scale_sm_FWHM=4,
-  nuisance=NULL,
-  scrub=NULL, drop_first=0,
-  hpf=0, TR=NULL,
+  drop_first=0, nuisance=NULL, scrub=NULL,
+  TR=NULL, hpf=NULL, lpf=NULL,
   GSR=FALSE,
+  scale_by=c("mean", "sd", "none"),
+  scale_sm_FWHM=4,
+  scale_sm_surfL=NULL,
+  scale_sm_surfR=NULL,
   Q2=0, Q2_max=NULL,
-  NA_limit=.1,
+  # NA_limit=.1,
   brainstructures="all", resamp_res=NULL,
   FC_updateA_path=NULL,
   varTol=1e-6, maskTol=.1,
@@ -133,7 +130,30 @@ dual_reg2 <- function(
   if (verbose) { extime <- Sys.time() }
 
   keepA <- as.logical(keepA); stopifnot(length(keepA)==1)
-  scale <- match.arg(scale, c("local", "global", "none"))
+
+  scale_by <- match.arg(scale_by, c("mean", "sd", "none"))
+  if (scale_by == "none") { scale_sm_FWHM <- 0 } # avoid unnecessary work
+  stopifnot(fMRItools::is_1(scale_sm_FWHM, "numeric"))
+  scale_sm <- switch(
+    as.character(scale_sm_FWHM), 
+    "0"="none", "Inf"="global", "local"
+  )
+  if (scale_sm=="local") { stopifnot(scale_sm_FWHM > 0) }
+
+  if (identical(TR, "from_xifti_metadata")) {
+    if ((!is.null(hpf) && hpf != 0) || (!is.null(lpf) && is.finite(lpf))) {
+      stop("`hpf` or `lpf` was requested, but `TR` was neither provided nor able to be inferred from the data. Please provide `TR`.")
+    }
+    TR <- NULL  # no temporal filtering requested, so TR isn't needed
+  }
+
+  if (!is.null(BOLD2)) {
+    if (!is.null(nuisance)) { stopifnot(is.list(nuisance) && length(nuisance)==2) }
+    if (!is.null(scrub)) { stopifnot(is.list(scrub) && length(scrub)==2) }
+  }
+
+  do_denoise <- !((!is.null(Q2) && Q2==0) || (!is.null(Q2_max) && Q2_max==0))
+
   # No other arg checks: check them before calling this function.
 
   # For `"xifti"` data for handling the medial wall and smoothing.
@@ -149,8 +169,9 @@ dual_reg2 <- function(
   check_req_ifti_pkg(FORMAT)
 
   template_parc <- !is.null(template_parc_table)
-  nQ <- if (template_parc) { nrow(template_parc_table) } else { ncol(template) }
+  nQ <- if (template_parc) { nrow(template_parc_table) } else { ncol(template) } # unused
 
+  if (FORMAT=="NIFTI") { stopifnot(!is.null(mask)) } 
   if (is.null(mask)) {
     nI <- nV <- nrow(template)
   } else if (FORMAT=="NIFTI") {
@@ -165,7 +186,7 @@ dual_reg2 <- function(
   if (FORMAT == "CIFTI") {
     if (is.character(BOLD)) { BOLD <- ciftiTools::read_cifti(BOLD, brainstructures=brainstructures, resamp_res=resamp_res) }
     if (ciftiTools::is.xifti(BOLD)) {
-      if (scale == "local") {
+      if (scale_sm == "local") {
         xii1 <- ciftiTools::convert_xifti(ciftiTools::select_xifti(BOLD, 1), "dscalar") * 0 # Extract surface and mwall from input xifti for scale smoothing
       }
       BOLD <- as.matrix(BOLD)
@@ -184,7 +205,7 @@ dual_reg2 <- function(
       stop("AnatomicalStructurePrimary metadata missing or invalid for template.")
     }
     ghemi <- switch(ghemi, CortexLeft="left", CortexRight="right")
-    if (scale == "local") {
+    if (scale_sm == "local") {
       if (ghemi == "left") {
         xii1 <- ciftiTools::select_xifti(ciftiTools::as.xifti(cortexL=do.call(cbind, BOLD$data)), 1) * 0
       } else if (ghemi == "right") {
@@ -208,7 +229,6 @@ dual_reg2 <- function(
       if (is.character(BOLD2)) { BOLD2 <- RNifti::readNifti(BOLD2) }
       stopifnot(length(dim(BOLD2)) > 1)
     }
-    stopifnot(!is.null(mask))
   } else if (FORMAT == "MATRIX") {
     if (is.character(BOLD)) { BOLD <- readRDS(BOLD) }
     stopifnot(is.matrix(BOLD))
@@ -221,27 +241,6 @@ dual_reg2 <- function(
 
   dBOLD <- dim(BOLD)
   ldB <- length(dim(BOLD))
-  nT <- dim(BOLD)[ldB]
-
-  # `drop_first` for `BOLD` (`scrub` and `nuisance` handled later)
-  if (drop_first > 0) {
-    stopifnot(drop_first < nT)
-    if (ldB==2) {
-      BOLD <- BOLD[,-seq(drop_first),drop=FALSE]
-    } else if (ldB==3) {
-      BOLD <- BOLD[,,-seq(drop_first),drop=FALSE]
-    }
-    if (retest) {
-      stopifnot(drop_first < ncol(BOLD2))
-      if (ldB==2) {
-        BOLD2 <- BOLD2[,-seq(drop_first),drop=FALSE]
-      } else if (ldB==3) {
-        BOLD2 <- BOLD2[,,-seq(drop_first),drop=FALSE]
-      }
-    }
-  }
-  dBOLD <- dim(BOLD)
-  nT <- dim(BOLD)[ldB]
 
   # If `retest`, ensure that spatial dimensions of `BOLD2` match with `BOLD`.
   if (retest) {
@@ -255,10 +254,10 @@ dual_reg2 <- function(
 
   # Vectorize `BOLD` (and `BOLD2`). --------------------------------------------
   if (FORMAT=="NIFTI") {
-    BOLD <- matrix(BOLD[rep(as.logical(mask), dBOLD[ldB])], ncol=nT)
+    BOLD <- matrix(BOLD, nrow=prod(nI))[as.logical(mask),,drop=FALSE]
     stopifnot(nrow(BOLD) == nV)
     if (retest) {
-      BOLD2 <- matrix(BOLD2[rep(as.logical(mask), dBOLD[ldB])], ncol=nT)
+      BOLD2 <- matrix(BOLD2, nrow=prod(nI))[as.logical(mask),,drop=FALSE]
       stopifnot(nrow(BOLD2) == nV)
     }
   } else if (!is.null(mask)) {
@@ -276,10 +275,34 @@ dual_reg2 <- function(
     }
   }
 
+  # `drop_first` ---------------------------------------------------------------
+  # Do here, before NA values check.
+  stopifnot(fMRItools::is_posNum(drop_first, zero_ok=TRUE))
+  if (drop_first > 0) {
+    stopifnot(drop_first < ncol(BOLD) - 2)
+    # Drop columns from BOLD; drop rows from nuisance; adjust `scrub`.
+    # (Already done for scrubbing.)
+    if (!retest) {
+      BOLD <- BOLD[,-seq(drop_first),drop=FALSE]
+      if (!is.null(scrub)) { scrub <- scrub[scrub > drop_first] - drop_first }
+      if (!is.null(nuisance)) { nuisance <- nuisance[-seq(drop_first),,drop=FALSE] }
+    } else {
+      stopifnot(drop_first < ncol(BOLD2) - 2)
+      BOLD <- BOLD[,-seq(drop_first),drop=FALSE]
+      BOLD2 <- BOLD2[,-seq(drop_first),drop=FALSE]
+      if (!is.null(scrub[[1]])) { scrub[1] <- list(scrub[[1]][scrub[[1]] > drop_first] - drop_first) }
+      if (!is.null(scrub[[2]])) { scrub[2] <- list(scrub[[2]][scrub[[2]] > drop_first] - drop_first) }
+      if (!is.null(nuisance[[1]])) { nuisance[1] <- list(nuisance[[1]][-seq(drop_first),,drop=FALSE]) }
+      if (!is.null(nuisance[[2]])) { nuisance[2] <- list(nuisance[[2]][-seq(drop_first),,drop=FALSE]) }
+    }
+
+    # Do not do this again.
+    drop_first <- 0
+  }
+
   # Check for missing values. --------------------------------------------------
-  nV0 <- nV # not used
-  mask2 <- make_mask(BOLD, varTol=varTol)
-  if (retest) { mask2 <- mask2 & make_mask(BOLD2, varTol=varTol) }
+  mask2 <- fMRItools::mask_BOLD(BOLD, varTol=varTol)
+  if (retest) { mask2 <- mask2 & fMRItools::mask_BOLD(BOLD2, varTol=varTol) }
   use_mask2 <- !all(mask2)
   if (use_mask2) {
     # Coerce `maskTol` to number of locations.
@@ -312,174 +335,113 @@ dual_reg2 <- function(
     }
   }
 
-  # Nuisance regression and scrubbing. -----------------------------------------
-  add_to_nuis <- function(x, nuis) {
-    if (is.null(nuis)) {
-      if(is.matrix(x)) {result <- x} else {result <- as.matrix(x, ncol=1)}
-    } else {
-      result <- cbind(x, nuis)
-    }
-    return(result)
-  }
-
-  nmat <- NULL
-  if (retest) { nmat2 <- NULL }
-  nT_pre <- dim(BOLD)[ldB]
-  if (retest) { nT_pre2 <- dim(BOLD2)[ldB] }
-
-  ## `nuisance`
-  if (!is.null(nuisance)) {
-    if (retest) {
-      stopifnot(is.list(nuisance))
-      stopifnot(length(nuisance)==2)
-      if (!is.null(nuisance[[1]])) {
-        stopifnot(is.numeric(nuisance[[1]]) && is.matrix(nuisance[[1]]))
-        if (drop_first > 0) {
-          nuisance[[1]] <- nuisance[[1]][-seq(drop_first),,drop=FALSE]
-        }
-        stopifnot(nrow(nuisance[[1]]) == nT_pre)
-        nmat <- add_to_nuis(nuisance[[1]], nmat)
-      }
-      if (!is.null(nuisance[[2]])) {
-        stopifnot(is.numeric(nuisance[[2]]) && is.matrix(nuisance[[2]]))
-        if (drop_first > 0) {
-          nuisance[[2]] <- nuisance[[2]][-seq(drop_first),,drop=FALSE]
-        }
-        stopifnot(nrow(nuisance[[2]]) == nT_pre2)
-        nmat2 <- add_to_nuis(nuisance[[2]], nmat2)
-      }
-
-    } else {
-      if (!is.null(nuisance)) {
-        stopifnot(is.numeric(nuisance) && is.matrix(nuisance))
-        if (drop_first > 0) {
-          nuisance <- nuisance[-seq(drop_first),,drop=FALSE]
-        }
-        stopifnot(nrow(nuisance) == nT_pre)
-        nmat <- add_to_nuis(nuisance, nmat)
-      }
-    }
-  }
-
-  if (!is.null(scrub)) {
-
-    if (retest) { scrub1 <- scrub[[1]] } else {scrub1 <- scrub}
-
-    #set up spike regressors and drop first
-    if (length(scrub1) > 0) {
-      if (drop_first > 0) {
-        scrub1 <- scrub1[scrub1 > drop_first] - drop_first
-      }
-      scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub1, nT_pre)
-      nmat <- add_to_nuis(scrub_mat, nmat)
-    }
-    #do the same thing for retest scans
-    if (retest) {
-      if (length(scrub[[2]]) > 0) {
-        if (drop_first > 0) {
-          scrub[[2]] <- scrub[[2]][scrub[[2]] > drop_first] - drop_first
-        }
-        scrub_mat <- fMRIscrub::flags_to_nuis_spikes(scrub[[2]], nT_pre2)
-        nmat2 <- add_to_nuis(scrub_mat, nmat2)
-      }
-    }
-  } else {
-    scrub1 <- NULL
-  }
-
-  ## DCT
-  if (hpf != 0) {
-    if (TR=="from_xifti_metadata") {
-      stop("`hpf!=0`, but `TR`` was neither provided nor able to be inferred from the data. Please provide `TR`.")
-    }
-    nDCT <- round(dct_convert(nT_pre, TR=TR, f=hpf))
-    nmat <- add_to_nuis(dct_bases(nT_pre, nDCT), nmat)
-    if (retest) {
-      nDCT <- round(dct_convert(nT_pre2, TR=TR, f=hpf))
-      nmat2 <- add_to_nuis(dct_bases(nT_pre2, nDCT), nmat2)
-    }
-  }
-
-  ## Perform nuisance regression, and drop scrubbed volumes, if applicable. ----
-  ones <- rep(1, nT)
-  nmat <- add_to_nuis(ones, nmat) #add intercept
-
-  # Calculate mu as the intercept from nuisance regression. 
-  mu <- (solve(crossprod(nmat)) %*% t(nmat) %*% t(BOLD))[1,]
-
-  BOLD <- nuisance_regression(BOLD, nmat)
-  if (length(scrub1) > 0) { BOLD <- BOLD[,-scrub1,drop=FALSE] }
-
-  if (retest) {
-    nmat2 <- add_to_nuis(ones, nmat2)
-    mu2 <- (solve(crossprod(nmat2)) %*% t(nmat2) %*% t(BOLD2))[1,] # mu2 calculated as intercept of nuissance regression 
-    BOLD2 <- nuisance_regression(BOLD2, nmat2)
-    if (length(scrub[[2]]) > 0) { BOLD2 <- BOLD2[,-scrub[[2]],drop=FALSE]}
-  }
-
-  #check that mu for scaling is valid (all locations positive and not close to zero)
-  if (scale != 'none') {
-    if(any(mu < 0) | any(abs(mu) < 1e-8)) stop("Some locations have zero or negative means. Set scale = 'none' or provide non-centered data.")
-    if(any(mu2 < 0) | any(abs(mu2) < 1e-8)) stop("Some locations have zero or negative means. Set scale = 'none' or provide non-centered data.")
-  }
-
-  hpf <- 0 # Done already!
-
-  nT <- ncol(BOLD) # was updated by scrubbing.
-
   # Prep for dual regression ---------------------------------------------------
+  if (is.null(xii1) && scale_sm=="local") { 
+    message("No surface data: skipping smoothing of scale estimates.")
+    scale_sm_FWHM <- 0
+    scale_sm <- "none" 
+  }
 
-  if (!is.null(xii1) && scale=="local" && scale_sm_FWHM > 0) {
+  # Add surfaces to `xii1`
+  if (!is.null(xii1) && scale_sm=="local") {
     xii1 <- ciftiTools::add_surf(xii1, surfL=scale_sm_surfL, surfR=scale_sm_surfR)
   }
 
-  # Helper functions
-  this_norm_BOLD <- function(B, m){ norm_BOLD(
-    B, center_rows=TRUE, center_cols=GSR,
-    scale=scale, scale_sm_xifti=xii1, scale_sm_FWHM=scale_sm_FWHM,
-    hpf=hpf, TR=TR, mu=m
+  ### Define helper functions ---
+
+  # Do the big regression. Do not center and do not scale.
+  big_nreg_BOLD <- function(B) { norm_BOLD (
+    BOLD=B,
+    nuisance=nuisance, scrub=scrub,
+    TR=TR, hpf=hpf, lpf=lpf,
+    center_rows=FALSE, center_cols=FALSE,
+    scale_by="none", scale_sm_FWHM=0
   ) }
 
+  # Center and scale. Do not do the big regression again.
+  center_scale_BOLD <- function(B) { norm_BOLD(
+    BOLD=B,
+    TR=TR, hpf=NULL, lpf=NULL,
+    scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
+    center_rows=TRUE, center_cols=GSR
+  ) }
+
+  # Handle continuous vs. discrete prior
   DR_FUN <- if (template_parc) {
     function(template, ...) { fMRItools::dual_reg_parc(parc=template, ...) }
   } else {
     function(template, parc_vals, ...) { fMRItools::dual_reg(GICA=template, ...) }
   }
 
-  dual_reg_noNorm <- function(B){ DR_FUN(
+  # Dual regression without any norm_BOLD stuff
+  DR_noNorm <- function(B) { DR_FUN(
     B, template=template, parc_vals=template_parc_table$Key,
-    scale="none", hpf=0, GSR=FALSE
+    # Disable norm stuff that's enabled by default
+    hpf=0, scale_by="none"#, GSR=FALSE
   ) }
 
   # Get the first dual regression results. -------------------------------------
   if (verbose) { cat("\n\tDual regression... ") }
-  # but this normalization step was added so that sigma_sq is correctly calculated.
+
   if (!retest) {
+    # 1. Normalizing. ---
+    # Do the big nuisance regression (first half of `norm_BOLD`)
+    #   (everything but centering and scaling).
+    BOLD <- big_nreg_BOLD(BOLD)
+    # Get `nT` (was updated by scrubbing and `drop_first`)
+    nT <- ncol(BOLD)
+    # Split BOLD in half.
     part1 <- seq(round(nT/2))
     part2 <- setdiff(seq(nT), part1)
-    BOLDh1 <- this_norm_BOLD(BOLD[, part1, drop=FALSE], mu) #first half of data
-    BOLDh2 <- this_norm_BOLD(BOLD[, part2, drop=FALSE], mu) #second half of data
-    # (No need to normalize again.)
-    out$test <- dual_reg_noNorm(BOLDh1)
-    out$retest <- dual_reg_noNorm(BOLDh2)
+    # Center and scale. (No nuisance regression, temporal filtering, etc.)
+    BOLDh1 <- center_scale_BOLD(BOLD[, part1, drop=FALSE]) #first half of data
+    BOLDh2 <- center_scale_BOLD(BOLD[, part2, drop=FALSE]) #second half of data
+    
+    # 2. Two DR's. ---
+    out$test <- DR_noNorm(BOLDh1)
+    out$retest <- DR_noNorm(BOLDh2)
+
   } else {
-    # If retest, normalize `BOLD` and `BOLD2`, and then compute DR.
-    BOLD <- this_norm_BOLD(BOLD, mu)
-    BOLD2 <- this_norm_BOLD(BOLD2, mu2)
-    # (No need to normalize again.)
-    out$test <- dual_reg_noNorm(BOLD)
-    out$retest <- dual_reg_noNorm(BOLD2)
+    # 1. Normalizing. ---
+    BOLD <- norm_BOLD(
+      BOLD, 
+      nuisance=nuisance[[1]], scrub=scrub[[1]],
+      TR=TR, hpf=hpf, lpf=lpf,
+      center_rows=TRUE, center_cols=GSR,
+      scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, 
+      scale_sm_xifti=xii1
+    )
+    BOLD2 <- norm_BOLD(
+      BOLD2, 
+      nuisance=nuisance[[2]], scrub=scrub[[2]],
+      TR=TR, hpf=hpf, lpf=lpf,
+      center_rows=TRUE, center_cols=GSR,
+      scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, 
+      scale_sm_xifti=xii1
+    )
+
+    # 2. Two DR's. ---
+    out$test <- DR_noNorm(BOLD)
+    out$retest <- DR_noNorm(BOLD2)
   }
 
   BOLDss <- list(
     test = if (!retest) { BOLDh1 } else { BOLD },
     retest = if (!retest) { BOLDh2 } else { BOLD2 }
   )
-  BOLDss$test_preclean <- BOLDss$test
-  BOLDss$retest_preclean <- BOLDss$retest
+
+  if (!retest && !do_denoise) rm(BOLD)
+
+  # Get `sigma_sq` -------------------------------------------------------------
+  # part inside colSums() is TxV
+  calc_sigma_sq <- function(DR, B) colSums((DR$A %*% DR$S - t(B))^2) / ncol(B)
+  for (sess in c("test","retest")) {
+    out[[sess]]$sigma_sq <- calc_sigma_sq(out[[sess]], BOLDss[[sess]])
+  }
+  rm(BOLDss)
 
   # Return these DR results if denoising is not needed. ------------------------
-  if ((!is.null(Q2) && Q2==0) || (!is.null(Q2_max) && Q2_max==0)) {
+  if (!do_denoise) {
 
     if (!is.null(FC_updateA_path)) {
       BOLDkeep <- list(
@@ -489,10 +451,11 @@ dual_reg2 <- function(
       saveRDS(BOLDkeep, file.path(FC_updateA_path, "BOLDkeep.rds"))
     }
 
+    if (retest) { rm(BOLD, BOLD2) } else { rm(BOLDh1, BOLDh2) }
+
     for (sess in c("test", "retest")) {
-      out[[sess]]$sigma_sq <- colSums((out[[sess]]$A %*% out[[sess]]$S - t(BOLDss[[sess]]))^2)/nT # part inside colSums() is TxV
       if (use_mask2) { out[[sess]]$sigma_sq <- unmask_vec(out[[sess]]$sigma_sq, mask2) }
-      if (!keepA) { out[[sess]]$A <- NULL }
+      if (!keepA) { out[[sess]]$A <- out[[sess]]$A2 <- NULL }
       if (use_mask2) { out[[sess]]$S <- unmask(out[[sess]]$S, mask2) }
     }
 
@@ -501,20 +464,25 @@ dual_reg2 <- function(
     return(out)
   }
 
+  if (!retest) { rm(BOLDh1, BOLDh2) }
+
   # Estimate and deal with nuisance ICs. ---------------------------------------
   if (verbose) { cat(" Denoising... ") }
   # If !retest, we prefer to estimate nuisance ICs across the full scan
   # and then halve it after.
   if (!retest) {
-    BOLD <- this_norm_BOLD(BOLD) # hasn't been done yet
-    BOLD_DR <- dual_reg_noNorm(BOLD) # provides initial estimate of networks for full scan
-    BOLD <- rm_nuisIC(BOLD, DR=BOLD_DR, Q2=Q2, Q2_max=Q2_max, verbose=verbose)
+    # Note: up to this line, `BOLD` has gone thru the big regression
+    #   but has not been centered or scaled.
+    BOLD <- center_scale_BOLD(BOLD)
+    # Get initial estimate of networks for full scan.
+    BOLD_DR <- DR_noNorm(BOLD)
+    BOLD <- rm_nuisIC(BOLD, DR=BOLD_DR[c("A", "S")], Q2=Q2, Q2_max=Q2_max, verbose=verbose)
     rm(BOLD_DR)
     BOLD2 <- BOLD[, part2, drop=FALSE]
     BOLD <- BOLD[, part1, drop=FALSE]
   } else {
-    BOLD <- rm_nuisIC(BOLD, DR=out$test, Q2=Q2, Q2_max=Q2_max, verbose=verbose)
-    BOLD2 <- rm_nuisIC(BOLD2, DR=out$retest, Q2=Q2, Q2_max=Q2_max, verbose=verbose)
+    BOLD <- rm_nuisIC(BOLD, DR=out$test[c("A", "S")], Q2=Q2, Q2_max=Q2_max, verbose=verbose)
+    BOLD2 <- rm_nuisIC(BOLD2, DR=out$retest[c("A", "S")], Q2=Q2, Q2_max=Q2_max, verbose=verbose)
   }
   
   # Center `BOLD` and `BOLD2` (again).
@@ -531,20 +499,19 @@ dual_reg2 <- function(
 
   # Do DR again. ---------------------------------------------------------------
   if (verbose) { cat("\n\tDual regression again... ") }
-
-  BOLDss <- list(test = BOLD, retest = BOLD2)
-  BOLDss$test_preclean <- BOLDss$test
-  BOLDss$retest_preclean <- BOLDss$retest
-
+  
   out$test_preclean <- out$test
-  out$test <- dual_reg_noNorm(BOLD, mu)
+  out$test <- DR_noNorm(BOLD)
   out$retest_preclean <- out$retest
-  out$retest <- dual_reg_noNorm(BOLD2, mu2)
+  out$retest <- DR_noNorm(BOLD2)
+
+  out$test$sigma_sq <- calc_sigma_sq(out$test, BOLD)
+  out$retest$sigma_sq <- calc_sigma_sq(out$retest, BOLD2)
+  rm(BOLD, BOLD2); gc()
 
   for (sess in c("test", "retest", "test_preclean", "retest_preclean")) {
-    out[[sess]]$sigma_sq <- colSums((out[[sess]]$A %*% out[[sess]]$S - t(BOLDss[[sess]]))^2)/nT # part inside colSums() is TxV
     if (use_mask2) { out[[sess]]$sigma_sq <- unmask_vec(out[[sess]]$sigma_sq, mask2) }
-    if (!keepA) { out[[sess]]$A <- NULL }
+    if (!keepA) { out[[sess]]$A <- out[[sess]]$A2 <- NULL }
     if (use_mask2) { out[[sess]]$S <- unmask(out[[sess]]$S, mask2) }
   }
 
