@@ -221,7 +221,6 @@ dual_reg2 <- function(
       if (inherits(BOLD2, "gifti")) { BOLD2 <- do.call(cbind, BOLD2$data) }
       stopifnot(is.matrix(BOLD2))
     }
-    nI <- nV <- nrow(template)
   } else if (FORMAT == "NIFTI") {
     if (is.character(BOLD)) { BOLD <- RNifti::readNifti(BOLD) }
     stopifnot(length(dim(BOLD)) > 1)
@@ -236,7 +235,6 @@ dual_reg2 <- function(
       if (is.character(BOLD2)) { BOLD2 <- readRDS(BOLD2) }
       stopifnot(is.matrix(BOLD2))
     }
-    nI <- nV <- nrow(template)
   } else { stop() }
 
   dBOLD <- dim(BOLD)
@@ -446,9 +444,9 @@ dual_reg2 <- function(
     if (!is.null(FC_updateA_path)) {
       BOLDkeep <- list(
         test = if (!retest) { BOLDh1 } else { BOLD },
-        retest = if (!retest) { BOLDh2 } else { BOLD2 }
+        retest = if (!retest) { BOLDh2 } else { BOLD2 },
+        mask2 = mask2
       )
-      if (use_mask2) { BOLDkeep$mask2 <- mask2 }
       saveRDS(BOLDkeep, file.path(FC_updateA_path, "BOLDkeep.rds"))
     }
 
@@ -486,14 +484,15 @@ dual_reg2 <- function(
     BOLD2 <- rm_nuisIC(BOLD2, DR=out$retest[c("A", "S")], Q2=Q2, Q2_max=Q2_max, verbose=verbose)
   }
   
-  # Center `BOLD` and `BOLD2` (again).
-  BOLD <- BOLD - rowMeans(BOLD)
-  BOLD2 <- BOLD2 - rowMeans(BOLD2)
+  # Center and scale `BOLD` and `BOLD2` (again).
+  BOLD <- center_scale_BOLD(BOLD)
+  BOLD2 <- center_scale_BOLD(BOLD2)
 
   if (!is.null(FC_updateA_path)) {
     BOLDkeep <- list(
       test = BOLD,
-      retest = BOLD2
+      retest = BOLD2,
+      mask2 = mask2
     )
     saveRDS(BOLDkeep, file.path(FC_updateA_path, "BOLDkeep.rds"))
   }
