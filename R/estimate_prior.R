@@ -1,55 +1,42 @@
 #' Estimate prior from DR
 #'
-#' Estimate variance decomposition and priors from DR estimates.
-#'
-#' @param DR the test/retest dual regression estimates, as an array with
-#'  dimensions \eqn{M \times N \times (L \times V)}, where \eqn{M} is the number
-#'  of visits (2), \eqn{N} is the number of subjects, \eqn{L} is the number of
-#'  brain networks, and \eqn{V} is the number of data locations.
-#'
-#'  (\eqn{L} and \eqn{V} are collapsed because they are treated equivalently
-#'  in the context of calculating the variance decomposition and priors).
-#' @param LV A length-two integer vector giving the dimensions \eqn{L} and
-#'  \eqn{V} to reshape the result. Default: \code{NULL} (do not reshape the
-#'  result).
-#'
-#' @return List of two elements: the priors and the variance decomposition.
-#'
-#'  There are two version of the variance prior: \code{varUB} gives the
-#'  unbiased variance estimate, and \code{varNN} gives the upwardly-biased
-#'  non-negative variance estimate. Values in \code{varUB} will need to be
-#'  clamped above zero before using in \code{\link{fit_BBM}}.
+#' (roxygen header unchanged)
 #'
 #' @importFrom fMRItools var_decomp
 #' @keywords internal
-estimate_prior_from_DR <- function(
-  DR, LV=NULL){
+estimate_prior_from_DR <- function(DR, LV=NULL){
 
   # Check arguments.
   stopifnot(length(dim(DR)) == 3)
   nM <- dim(DR)[1]  # visits
-  nN <- dim(DR)[2]  # subjects
+  # nN <- dim(DR)[2]  # subjects, including NA
   nLV <- dim(DR)[3] # locations & networks
   if (!is.null(LV)) {
     stopifnot(is.numeric(LV) && all(LV > 0))
     stopifnot(prod(LV) == nLV)
   }
 
-  # Variance decomposition
+  if (nM == 1) { stop("Only one visit.") }
+
+  # Variance decomposition. Subjects without complete data at a given
+  #   location/network are excluded there; `vd$nS` is the per-location count.
   vd <- var_decomp(DR)
 
+  # Need >= 2 subjects to estimate a variance.
+  nS <- vd$nS
+  nS[nS < 2] <- NA
+
   # Prior calculation
-  # Below true for M==2. Double check correct for M > 3? (Not used currently.)
-  MSB_divM <- (vd$SSB / (nN-1)) / nM
-  MSE_divM <- (vd$SSR / ((nM-1)*(nN-1))) / nM
+  MSB_divM <- (vd$SSB / (nS - 1)) / nM
+  MSE_divM <- (vd$SSR / ((nM - 1) * (nS - 1))) / nM
   prior <- list(
-    mean = vd$grand_mean,
+    mean  = vd$grand_mean,
     varUB = MSB_divM - MSE_divM,
     varNN = MSB_divM
   )
 
   # Format `vd`
-  vd$nM <- vd$nS <- vd$grand_mean <- NULL # Get rid of redundant entries
+  vd$nM <- vd$grand_mean <- NULL # Get rid of redundant entries
 
   ## Format `prior`: clamp var est above zero.
   # prior$varUB <- pmax(0, prior$varUB)
@@ -60,59 +47,10 @@ estimate_prior_from_DR <- function(
     vd <- lapply(vd, function(x){ matrix(x, nrow=LV[1], ncol=LV[2]) })
   }
 
-  # Return
+  # note: `var_decomp` and this function uses nS for number of subjects,
+  #   but elsewhere in this package it's nN.
+
   list(prior=prior, var_decomp=vd)
-}
-
-#' Estimate prior from DR estimates (when there are two measurements)
-#'
-#' Legacy version of \code{\link{estimate_prior_from_DR}}
-#'
-#' @param DR1,DR2 the test and retest dual regression estimates (\eqn{N \times L \times V})
-#'
-#' @return List of two elements: the mean and variance priors
-#' @keywords internal
-estimate_prior_from_DR_two <- function(DR1, DR2){
-
-  # Check arguments.
-  stopifnot(length(dim(DR1)) == length(dim(DR2)))
-  stopifnot(all(dim(DR1) == dim(DR2)))
-  N <- dim(DR1)[1]
-
-  prior <- list(mean=NULL, var=NULL)
-
-  # Mean.
-  prior$mean <- t(colMeans(DR1 + DR2, na.rm=TRUE) / 2)
-
-  # Variance.
-  SSB <- 2 * colSums(((DR1 + DR2)/2 - rep(t(prior$mean), each=N))^2, na.rm=TRUE)
-  prior$var_nn <- t(SSB / (N-1)) / 2 # MSB/2
-  # Unbiased.
-  # 1. Fastest method.
-  var_noise <- t( (1/2) * apply(DR1 - DR2, c(2,3), var, na.rm=TRUE) )
-  prior$var_ub <- prior$var_nn - var_noise/2
-
-  # # 2. Previous, equivalent calculation.
-  # var_tot1 <- apply(DR1, c(2,3), var, na.rm=TRUE)
-  # var_tot2 <- apply(DR2, c(2,3), var, na.rm=TRUE)
-  # var_tot <- t((var_tot1 + var_tot2)/2)
-  # # noise (within-subject) variance
-  # DR_diff <- DR1 - DR2;
-  # var_noise <- t((1/2)*apply(DR_diff, c(2,3), var, na.rm=TRUE))
-  # # signal (between-subject) variance
-  # prior$var <- var_tot - var_noise
-  #
-  # # 3. Another equivalent calculation.
-  # prior$var <- t(apply(
-  #   abind::abind(DR1, DR2, along=1),
-  #   seq(2, 3),
-  #   function(q){ cov(q[seq(N)], q[seq(N+1, 2*N)], use="complete.obs") }
-  # ))
-
-  # Make negative estimates equal to zero.
-  prior$var_ub[prior$var_ub < 0] <- 0
-
-  prior
 }
 
 #' Estimate empirical FC prior
@@ -439,11 +377,11 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #'  could bias the priors.
 #' @inheritParams scale_by_Param
 #' @inheritParams scale_sm_FWHM_Param
-#' @param scale_sm_surfL,scale_sm_surfR Required only for "local" smoothing 
-#'  (see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the surface
-#'  geometries along which to smooth, as GIFTI geometry files or 
+#' @param scale_sm_surfL,scale_sm_surfR Required only for "local" smoothing
+#'  (see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the 
+#'  surface geometries along which to smooth, as GIFTI geometry files or 
 #'  \code{ciftiTools} \code{"surf"} objects. The resolutions should match with
-#'  those of the \code{BOLD} data.
+#'  the \code{BOLD} data.
 #'
 #'  To create a \code{"surf"} object from data, see
 #'  \code{\link[ciftiTools]{make_surf}}.
@@ -559,7 +497,7 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #' @param verbose Display progress updates? Default: \code{TRUE}.
 #'
 #' @importFrom stats cov quantile complete.cases
-#' @importFrom fMRItools is_1 is_integer is_posNum colCenter unmask_mat infer_format_ifti_vec all_binary
+#' @importFrom fMRItools is_1 is_integer is_posNum colCenter unmask_mat infer_format_ifti_vec all_binary var_decomp
 #' @importFrom abind abind
 #'
 #' @return A list: the \code{prior} and \code{var_decomp} with entries in
@@ -621,6 +559,7 @@ estimate_prior <- function(
 
   # Simple argument checks.
   if (missing(template)) { stop("Please provide `template`.") }
+  if (is.null(scale_by) || isFALSE(scale_by)) { scale_by <- "none" }
   scale_by <- match.arg(scale_by, c("mean", "sd", "none"))
   stopifnot(fMRItools::is_1(scale_sm_FWHM, "numeric"))
   ## `scale_sm` defines what kind of smoothing's being done.
@@ -1046,11 +985,6 @@ estimate_prior <- function(
   nM <- 2
 
   # Initialize Cholesky pivots for Chol-based FC prior ---------------------
-  if (FC) {
-    if(FC_nPivots > 0){
-      FC_nSamp2 <- round(FC_nSamp/FC_nPivots) #number of samples per pivot
-    }
-  }
   if (!FC_updateA) {
     FC_updateA_path_ii <- NULL # will be changed for each ii if `FC_updateA`
   }
@@ -1239,7 +1173,7 @@ estimate_prior <- function(
     ) }
     DR0 <- DR0[,,,mask2,drop=FALSE]
     nVm <- sum(mask2)
-    sigma_sq0 <- sigma_sq0[,,mask2]
+    sigma_sq0 <- sigma_sq0[,,mask2,drop=FALSE]
   }
   # Note that `NA` values may still exist in `DR0`.
 
@@ -1257,6 +1191,9 @@ estimate_prior <- function(
   var_decomp <- lapply(x$var_decomp, t)
   rm(x)
 
+  nS_mat <- var_decomp$nS
+  var_decomp$nS <- NULL
+
   #rescale mean and variance of S to standardize residual var
   #rescaling residuals by \sigma_v implies that s_v rescaled in the same way
   #this is the same as rescaling mean(s_v) and var(s_v)
@@ -1264,7 +1201,7 @@ estimate_prior <- function(
   rescale <- matrix(rescale, nrow=length(sigma_sq0), ncol=nL)
   prior$mean <- prior$mean / rescale #scale mean(S)
   prior[2:3] <- lapply(prior[2:3], function(x) return(x / (rescale^2)) ) #scale var(S)
-  var_decomp <- lapply(var_decomp, function(x) return(x / (rescale^2) ) ) #scale var(S)
+  var_decomp <- lapply(var_decomp, function(x) return(x / (rescale^2) ))
   rm(rescale)
 
   if (FC_updateA) {
@@ -1397,13 +1334,13 @@ estimate_prior <- function(
   tparams <- list(
     FC=FC, FC_nPivots=FC_nPivots, FC_nSamp=FC_nSamp,
     num_subjects=nN, num_visits=nM,
-    inds=inds, nQ=nQ,
+    inds=inds,
     drop_first=drop_first,
     TR=TR, hpf=hpf,
     GSR=GSR,
     scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM,
     scale_sm_surfL=scale_sm_surfL, scale_sm_surfR=scale_sm_surfR,
-    Q2=Q2, Q2_max=Q2_max,
+    nQ=nQ, Q2=Q2, Q2_max=Q2_max,
     covariate_names=covariate_names,
     brainstructures=brainstructures, resamp_res=resamp_res,
     varTol=varTol, maskTol=maskTol, missingTol=missingTol,
