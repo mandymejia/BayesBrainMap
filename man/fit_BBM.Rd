@@ -8,10 +8,10 @@ fit_BBM(
   BOLD,
   prior,
   var_method = c("non-negative", "unbiased"),
-  scale = c("prior", "global", "local", "none"),
+  scale_by = c("prior", "mean", "sd", "none"),
+  scale_sm_FWHM = "prior",
   scale_sm_surfL = NULL,
   scale_sm_surfR = NULL,
-  scale_sm_FWHM = "prior",
   nuisance = NULL,
   scrub = NULL,
   drop_first = 0,
@@ -36,6 +36,7 @@ fit_BBM(
   usePar = TRUE,
   PW = FALSE,
   seed = 1234,
+  doMLE = TRUE,
   verbose = TRUE
 )
 }
@@ -60,31 +61,30 @@ non-negative prior variance adds to it to account for greater potential
 between-subjects variation. (The prior mean is the same for either choice
 of \code{var_method}.)}
 
-\item{scale}{\code{"global"}, \code{"local"}, or \code{"none"}.
-Global scaling will divide the entire data matrix by the mean image standard
-deviation (\code{mean(sqrt(rowVars(BOLD)))}). Local scaling will divide each
-data location's time series by its estimated standard deviation. Default:
-\code{"prior"}, to use the same option used for estimation of the
-\code{prior}.}
+\item{scale_by}{Scale the BOLD at each voxel based on either its
+\code{"mean"} or its \code{"sd"}, or \code{"none"} for no scaling if the
+data has already been scaled. Default: \code{"prior"}, to use the same
+option that was used for estimation of the \code{prior}.}
 
-\item{scale_sm_surfL, scale_sm_surfR, scale_sm_FWHM}{Only applies if
-\code{scale=="local"} and \code{BOLD} represents CIFTI-format data. To
-smooth the standard deviation estimates used for local scaling, provide the
-surface geometries along which to smooth as GIFTI geometry files or
-\code{"surf"} objects, as well as the smoothing FWHM (default:
-\code{"prior"} to use the same option used for estimation of the
-\code{prior}).
+\item{scale_sm_FWHM}{Full width at half maximum (FWHM) for smoothing the
+estimates of scale across brain locations (see \code{scale_by}), to reduce
+the variance of the estimates. Set to \code{0} to disable smoothing, or
+\code{Inf} for "global" smoothing (estimate one measure of scale across the
+entire brain). Otherwise, for "local" smoothing, this should be a positive
+number. Note that local smoothing is only available for surface data input
+(CIFTI or GIFTI BOLD). Default: \code{"prior"}, to use the same option used
+for estimation of the \code{prior}.}
 
-If \code{scale_sm_FWHM==0}, no smoothing of the local standard deviation
-estimates will be performed.
-
-If \code{scale_sm_FWHM>0} but \code{scale_sm_surfL} and
-\code{scale_sm_surfR} are not provided, the default inflated surfaces from
-the HCP will be used.
+\item{scale_sm_surfL, scale_sm_surfR}{Required only for "local" smoothing
+(see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the
+surface geometries along which to smooth, as GIFTI geometry files or
+\code{ciftiTools} \code{"surf"} objects. The resolutions should match with
+the \code{BOLD} data.
 
 To create a \code{"surf"} object from data, see
-\code{\link[ciftiTools]{make_surf}}. The surfaces must be in the same
-resolution as the \code{BOLD} data.}
+\code{\link[ciftiTools]{make_surf}}.
+
+If not provided, the fs_LR "midthickness" surfaces will be used.}
 
 \item{nuisance}{(Optional) Signals to regress from the data, given as a
 numeric matrix with the same number of rows as there are volumes in the
@@ -226,6 +226,9 @@ Only affects FC prior ICA models.}
 \item{seed}{(Only applicable for FC calculation and if \code{PW}) Seed to use
 for computing temporal effective sample size (ESS) to correct sums over
 \eqn{t}. If \code{NULL}, do not change the seed. Default: \code{1234}.}
+
+\item{doMLE}{If \code{TRUE}. Will calculate and return MLE map based on BBM temporal
+mixing matrix estimate. Default: \code{TRUE}}
 
 \item{verbose}{If \code{TRUE}, display progress of algorithm}
 }

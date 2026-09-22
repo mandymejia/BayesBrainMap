@@ -55,7 +55,6 @@ importFrom(Matrix,
 )
 importFrom(SQUAREM,squarem)
 importFrom(abind,abind)
-importFrom(fMRIscrub,flags2spikes)
 importFrom(fMRItools,
   PCA,
   UT2mat,
@@ -64,6 +63,7 @@ importFrom(fMRItools,
   dct_bases,
   dct_convert,
   dual_reg,
+  flags2spikes,
   infer_format_ifti_vec,
   is_1,
   is_integer,

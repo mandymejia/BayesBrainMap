@@ -1,7 +1,5 @@
 #' Estimate prior from DR
 #'
-#' (roxygen header unchanged)
-#'
 #' @importFrom fMRItools var_decomp
 #' @keywords internal
 estimate_prior_from_DR <- function(DR, LV=NULL){

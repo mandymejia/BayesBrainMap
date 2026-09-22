@@ -254,10 +254,10 @@ data input (CIFTI or GIFTI \code{BOLD}). Default: local smoothing with a
 FWHM of \code{4}.}
 
 \item{scale_sm_surfL, scale_sm_surfR}{Required only for "local" smoothing
-(see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the surface
-geometries along which to smooth, as GIFTI geometry files or
+(see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the
+surface geometries along which to smooth, as GIFTI geometry files or
 \code{ciftiTools} \code{"surf"} objects. The resolutions should match with
-those of the \code{BOLD} data.
+the \code{BOLD} data.
 
 To create a \code{"surf"} object from data, see
 \code{\link[ciftiTools]{make_surf}}.
