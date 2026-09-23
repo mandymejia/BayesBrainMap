@@ -275,6 +275,7 @@ dual_reg2 <- function(
 
   # `drop_first` ---------------------------------------------------------------
   # Do here, before NA values check.
+  if (is.null(drop_first)) { drop_first <- 0 }
   stopifnot(fMRItools::is_posNum(drop_first, zero_ok=TRUE))
   if (drop_first > 0) {
     stopifnot(drop_first < ncol(BOLD) - 2)
@@ -362,7 +363,8 @@ dual_reg2 <- function(
     norm_BOLD(
       BOLD=B,
       TR=TR, hpf=NULL, lpf=NULL,
-      scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
+      scale_by = if (!is.null(scale_meas)) { "FUN" } else { scale_by }, 
+      scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
       scale_FUN = if (!is.null(scale_meas)) { function(q){scale_meas} } else { NULL },
       center_rows=TRUE, center_cols=GSR,
       give_stats=give_stats

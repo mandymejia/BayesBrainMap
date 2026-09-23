@@ -16,7 +16,8 @@ rm_nuisIC(
 )
 }
 \arguments{
-\item{BOLD}{the row-centered \eqn{V} by \eqn{T} data}
+\item{BOLD}{the row-centered \eqn{V} by \eqn{T} data. It should already be
+scaled as desired.}
 
 \item{DR, prior_mean}{We need an initial estimate of the brain networks, so
 that we can avoid removing them during removal of the estimated noise ICs.

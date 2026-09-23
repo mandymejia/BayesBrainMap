@@ -1,3 +1,9 @@
+# 3.0
+
+* Update scaling arguments. Use new `fMRItools` functions.
+* Add scrubbing, nuisance regression, temporal filtering, and dropping volumes in a consistent manner between dual regression functions, `estimate_prior`, and `fit_BBM`. 
+* Bug fixes.
+
 # 2.0
 
 ### Rename:

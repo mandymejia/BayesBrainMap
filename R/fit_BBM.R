@@ -1,6 +1,6 @@
 #' Bayesian brain mapping
-#' 
-#' Fit Bayesian brain mapping model using variational Bayes (VB) or 
+#'
+#' Fit Bayesian brain mapping model using variational Bayes (VB) or
 #'  expectation-maximization (EM).
 #'
 #' @param BOLD Vector of subject-level fMRI data in one of the following
@@ -24,27 +24,27 @@
 #'  is equivalent to performing global signal regression. Default:
 #'  \code{"prior"}, to use the same option used for estimation of the
 #'  \code{prior}.
-#' @param scale_by Scale the BOLD at each voxel based on either its 
+#' @param scale_by Scale the BOLD at each voxel based on either its
 #'  \code{"mean"} or its \code{"sd"}, or \code{"none"} for no scaling if the
-#'  data has already been scaled. Default: \code{"prior"}, to use the same 
+#'  data has already been scaled. Default: \code{"prior"}, to use the same
 #'  option that was used for estimation of the \code{prior}.
 #' @param scale_sm_FWHM Full width at half maximum (FWHM) for smoothing the
 #'  estimates of scale across brain locations (see \code{scale_by}), to reduce
 #'  the variance of the estimates. Set to \code{0} to disable smoothing, or
 #'  \code{Inf} for "global" smoothing (estimate one measure of scale across the
-#'  entire brain). Otherwise, for "local" smoothing, this should be a positive 
+#'  entire brain). Otherwise, for "local" smoothing, this should be a positive
 #'  number. Note that local smoothing is only available for surface data input
 #'  (CIFTI or GIFTI BOLD). Default: \code{"prior"}, to use the same option used
 #'  for estimation of the \code{prior}.
 #' @param scale_sm_surfL,scale_sm_surfR Required only for "local" smoothing
-#'  (see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the 
-#'  surface geometries along which to smooth, as GIFTI geometry files or 
+#'  (see \code{scale_sm_FWHM}). To smooth the scale estimates, provide the
+#'  surface geometries along which to smooth, as GIFTI geometry files or
 #'  \code{ciftiTools} \code{"surf"} objects. The resolutions should match with
 #'  the \code{BOLD} data.
 #'
 #'  To create a \code{"surf"} object from data, see
 #'  \code{\link[ciftiTools]{make_surf}}.
-#' 
+#'
 #'  If not provided, the fs_LR "midthickness" surfaces will be used.
 #' @param nuisance (Optional) Signals to regress from the data, given as a
 #'  numeric matrix with the same number of rows as there are volumes in the
@@ -64,17 +64,17 @@
 #'  regressor to the nuisance design matrix for each volume to scrub. If
 #'  \code{NULL} (default), do not scrub.
 #' @param drop_first (Optional) Number of volumes to drop from the start of each
-#'  BOLD session. Default: \code{0}.
+#'  BOLD session. Default: 0.
 #' @param TR,hpf These arguments control detrending. \code{TR} is the temporal
 #'  resolution of the data, i.e. the time between volumes, in seconds;
 #'  \code{hpf} is the frequency of the high-pass filter, in Hertz. Detrending
 #'  is performed via nuisance regression of DCT bases. Default:
 #'  \code{"prior"} to use the values from the prior. Set \code{hpf} to \code{0}
-#'  to disable the high-pass filter. 
-#' 
-#'  Be sure to set the correct \code{TR} if it's different for the new data 
+#'  to disable the high-pass filter.
+#'
+#'  Be sure to set the correct \code{TR} if it's different for the new data
 #'  compared to the data used in \code{estimate_prior}.
-#' 
+#'
 #'  Note that if multiple \code{BOLD} sessions are provided, their
 #'  \code{TR} and \code{hpf} must be the same; both arguments accept only one
 #'  value.
@@ -89,7 +89,7 @@
 #'  If \code{is.null(Q2)}, use \code{Q2_max} to specify the maximum number of
 #'  nuisance ICs that should be estimated by PESEL. \code{Q2_max} must be less
 #'  than \eqn{T * .75 - Q} where \eqn{T} is the number of timepoints in BOLD
-#'  and \eqn{Q} is the number of networks in the prior. If \code{NULL}, \code{Q2_max} 
+#'  and \eqn{Q} is the number of networks in the prior. If \code{NULL}, \code{Q2_max}
 #'  will be set to \eqn{T * .50 - Q}, rounded.
 #'
 #'  The defaults for both arguments is \code{"prior"}, to use the same option
@@ -106,8 +106,8 @@
 #'  Default: \code{"prior"} to use the same brainstructures present in the
 #'  \code{prior}).
 #' @param mask Required only if the entries of \code{BOLD} are NIFTI
-#'  file paths or \code{"nifti"} objects. This is a binary array of the same 
-#'  spatial dimensions as the fMRI data, with \code{TRUE} corresponding to 
+#'  file paths or \code{"nifti"} objects. This is a binary array of the same
+#'  spatial dimensions as the fMRI data, with \code{TRUE} corresponding to
 #'  in-mask voxels.
 #' @param spatial_model Should spatial modeling be performed? If \code{NULL}, assume
 #'  spatial independence. Otherwise, provide meshes specifying the spatial priors assumed on
@@ -170,7 +170,7 @@
 # provide list of mesh vertices, faces, and data indices (in that order). Default: \code{FALSE}.
 # Only affects FC prior ICA models.
 #' @param seed (Only applicable for FC calculation and if \code{PW}) Seed to use
-#'  for computing temporal effective sample size (ESS) to correct sums over 
+#'  for computing temporal effective sample size (ESS) to correct sums over
 #'  \eqn{t}. If \code{NULL}, do not change the seed. Default: \code{1234}.
 #' @param verbose If \code{TRUE}, display progress of algorithm
 # @param common_smoothness If \code{TRUE}. use the common smoothness version
@@ -208,7 +208,7 @@ fit_BBM <- function(
   #tinds=NULL,
   scale_by=c("prior", "mean", "sd", "none"),
   scale_sm_FWHM="prior",
-  scale_sm_surfL=NULL, 
+  scale_sm_surfL=NULL,
   scale_sm_surfR=NULL,
   nuisance=NULL,
   scrub=NULL, drop_first=0,
@@ -225,8 +225,8 @@ fit_BBM <- function(
   rm_mwall=TRUE,
   reduce_dim=FALSE,
   method_FC=c("VB1", "VB2", "none"),
-  maxiter=100, 
-  miniter=3, 
+  maxiter=100,
+  miniter=3,
   epsilon=0.001,
   #eps_inter=NULL,
   kappa_init=0.2,
@@ -259,6 +259,8 @@ fit_BBM <- function(
   )
   if (scale_sm == "local") { stopifnot(scale_sm_FWHM > 0) }
 
+  if (!is.null(drop_first) && drop_first=="prior") { drop_first <- prior$params$drop_first }
+
   if (is.null(TR)) { TR <- "from_xifti_metadata" }
   stopifnot(length(TR)==1) # be explicit, diff TR for multi-BOLD is not allowed
   if (TR == "prior") { TR <- prior$params$TR }
@@ -268,26 +270,26 @@ fit_BBM <- function(
   if (GSR == "prior") {
     GSR <- prior$params$GSR
   }
-  if (Q2 == "prior") { Q2 <- prior$params$Q2 }
-  if (Q2_max == "prior") { Q2_max <- prior$params$Q2_max }
+  if (!is.null(Q2) && Q2 == "prior") { Q2 <- prior$params$Q2 }
+  if (!is.null(Q2_max) && Q2_max == "prior") { Q2_max <- prior$params$Q2_max }
   if (!is.null(prior$params$covariate_names)) {
     covariate_names <- prior$params$covariate_names
     nC <- length(covariate_names)
     if (is.null(covariates)) {
-      stop("These covariates were used during prior estimation: ", 
-        paste0(covariate_names, collapse=", "), ". They must also be provided ", 
+      stop("These covariates were used during prior estimation: ",
+        paste0(covariate_names, collapse=", "), ". They must also be provided ",
         "to `fit_BBM` with the `covariates` argument.")
     }
     stopifnot(is.numeric(covariates) && is.vector(covariates))
     stopifnot(length(covariates) == length(covariate_names))
     if(!all(names(covariates) == covariate_names)) {
-      stop("These covariates were used during prior estimation: ", 
-        paste0(covariate_names, collapse=", "), ". The same covariates must ", 
+      stop("These covariates were used during prior estimation: ",
+        paste0(covariate_names, collapse=", "), ". The same covariates must ",
         "also be provided to `fit_BBM` with the `covariates` argument. ",
         "However, the names for `covariates` provided here differ.")
     }
   } else {
-    if (!is.null(covariates)) { 
+    if (!is.null(covariates)) {
       stop("`covariates` is not `NULL`, yet none were used during prior ",
       "estimation. Any covariates must match those used in the prior.")
     }
@@ -307,7 +309,6 @@ fit_BBM <- function(
   # Remaining simple argument checks.
   var_method <- match.arg(var_method, c("non-negative", "unbiased"))
   tvar_name <- switch(var_method, `non-negative`="varNN", unbiased="varUB")
-  stopifnot(is_1(drop_first, "numeric") && drop_first==round(drop_first))
   if (TR!= "from_xifti_metadata") { stopifnot(fMRItools::is_posNum(TR)) }
   stopifnot(fMRItools::is_posNum(hpf, zero_ok=TRUE))
   stopifnot(is_1(GSR, "logical"))
@@ -390,17 +391,17 @@ fit_BBM <- function(
   }
   nN <- length(BOLD)
 
-  # Make `nuisance` and `scrub` a list too. 
-  if (is.null(nuisance)) { 
+  # Make `nuisance` and `scrub` a list too.
+  if (is.null(nuisance)) {
     nuisance <- rep(list(NULL), nN)
   } else {
-    if (!is.list(nuisance)) { nuisance <- as.list(nuisance) }
+    if (!is.list(nuisance)) { nuisance <- list(nuisance) }
     if (length(nuisance)==1 && nN>1) { nuisance <- nuisance[rep(1, nN)] }
   }
-  if (is.null(scrub)) { 
+  if (is.null(scrub)) {
     scrub <- rep(list(NULL), nN)
   } else {
-    if (!is.list(scrub)) { scrub <- as.list(scrub) }
+    if (!is.list(scrub)) { scrub <- list(scrub) }
     if (length(scrub)==1 && nN>1) { scrub <- scrub[rep(1, nN)] }
   }
 
@@ -832,36 +833,9 @@ fit_BBM <- function(
   if (any(is.na(prior$var))) { stop("`NA` values in prior var.") }
   if (any(is.nan(prior$mean))) { stop("`NaN` values in prior mean.") }
 
-  # Mask out additional locations due to data mask.
-  mask3 <- apply(do.call(rbind, lapply(BOLD, fMRItools::mask_BOLD, varTol=varTol)), 2, all)
-  use_mask3 <- any(!mask3)
-
-  if (use_mask3) {
-    if (do_spatial) {
-      stop('Not supported yet: flat or NA voxels in data, after applying prior mask, with spatial model.')
-    }
-
-    # [NOTE] For same results, would have needed to also update "A" matrix
-    #   (projection from mesh to data locations)
-
-    if(verbose) {
-      cat(paste0(
-        'In total, excluding ', sum(!mask3),
-        ' locations from analysis due to flat or NA values in BOLD.\n'
-      ))
-    }
-    prior_orig <- prior
-    BOLD <- lapply(BOLD, function(x){x[mask3,]})
-    dBOLDs <- lapply(BOLD, dim); dBOLD <- dBOLDs[[1]]
-    prior$mean <- prior$mean[mask3,]
-    prior$var <- prior$var[mask3,]
-    prior$sigma_sq0 <- prior$sigma_sq0[mask3]
-    if (use_mask2) { mask2[mask2][!mask3] <- FALSE }
-  }
-
-  nT_pre <- nT
-
   # `drop_first` ---------------------------------------------------------------
+  nT_pre <- nT
+  if (is.null(drop_first)) { drop_first <- 0 }
   stopifnot(fMRItools::is_posNum(drop_first, zero_ok=TRUE))
   if (drop_first > 0) {
     stopifnot(drop_first < nTmin - 2)
@@ -880,7 +854,33 @@ fit_BBM <- function(
     }
   }
 
+  ## Data mask -----------------------------------------------------------------
+  # Mask out additional locations due to data mask.
+  mask3 <- apply(do.call(rbind, lapply(BOLD, fMRItools::mask_BOLD, varTol=varTol)), 2, all)
+  use_mask3 <- any(!mask3)
 
+  if (use_mask3) {
+    if (do_spatial) {
+      stop('Not supported yet: flat or NA voxels in data, after applying prior mask, with spatial model.')
+    }
+
+    # [NOTE] For same results, would have needed to also update "A" matrix
+    #   (projection from mesh to data locations)
+
+    if(verbose) {
+      cat(paste0(
+        'In total, excluding ', sum(!mask3),
+        ' locations from analysis due to flat or NA values in BOLD.\n'
+      ))
+    }
+    # prior_orig <- prior # unused
+    BOLD <- lapply(BOLD, function(x){x[mask3,]})
+    dBOLDs <- lapply(BOLD, dim); dBOLD <- dBOLDs[[1]]
+    prior$mean <- prior$mean[mask3,]
+    prior$var <- prior$var[mask3,]
+    prior$sigma_sq0 <- prior$sigma_sq0[mask3]
+    if (use_mask2) { mask2[mask2][!mask3] <- FALSE }
+  }
 
   # Normalize ------------------------------------------------------------------
   if (!is.null(xii1) && scale_sm=="local") {
@@ -898,13 +898,14 @@ fit_BBM <- function(
     if (scale_by != "none") { cat(",", scale_by, "scaling") }
     cat(".\n")
   }
-  
+
+  BOLD_mu <- vector("list", nN)
   nmat <- vector("list", nN)
   for (bb in seq(nN)) {
     if (verbose && nN > 1) { cat(paste0("Session ", bb, ":")) }
     x <- norm_BOLD(
       BOLD[[bb]],
-      nuisance=nuisance[[bb]], scrub=scrub_bb,
+      nuisance=nuisance[[bb]], scrub=scrub[[bb]],
       TR=TR, hpf=hpf, #lpf=lpf,
       scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
       scale_sm_xifti_mask = mask2and3,
@@ -912,6 +913,7 @@ fit_BBM <- function(
       give_stats=TRUE
     )
     nmat[[bb]] <- x$nmat
+    BOLD_mu[[bb]] <- x$mu
     BOLD[[bb]] <- x$BOLD
   }
 
@@ -928,7 +930,8 @@ fit_BBM <- function(
     Q2_est <- vector("numeric", nN)
     for (bb in seq(nN)) {
       x <- rm_nuisIC(
-        BOLD[[bb]], prior_mean=prior$mean, Q2=Q2, Q2_max=Q2_max,
+        BOLD[[bb]], prior_mean=prior$mean, 
+        Q2=Q2, Q2_max=Q2_max,
         verbose=verbose, return_Q2=TRUE
       )
       BOLD[[bb]] <- x$BOLD
@@ -938,19 +941,30 @@ fit_BBM <- function(
 
     ## Center and scale `BOLD` again to ensure mean zero and correct scaling ---
     if (verbose) {
-      cat("Normalizing BOLD again: centering location timecourses")
+      cat("Normalizing BOLD again: centering and scaling location timecourses")
       if (scale_by != "none") { cat(",", scale_by, "scaling") }
       cat(".\n")
     }
-    
+
     for (bb in seq(nN)) {
-      BOLD[[bb]] <- norm_BOLD(
-        BOLD=BOLD[[bb]],
-        TR=TR, hpf=NULL, lpf=NULL,
-        scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
-        scale_sm_xifti_mask = mask2and3,
-        center_rows=TRUE, center_cols=GSR
-      )
+      if (scale_by == "mean") {
+        BOLD[[bb]] <- norm_BOLD(
+          BOLD=BOLD[[bb]],
+          TR=TR, hpf=NULL, lpf=NULL,
+          scale_by="FUN", scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
+          scale_sm_xifti_mask = mask2and3, 
+          scale_FUN = function(x) { BOLD_mu[[bb]] },
+          center_rows=TRUE, center_cols=GSR
+        )
+      } else {
+        BOLD[[bb]] <- norm_BOLD(
+          BOLD=BOLD[[bb]],
+          TR=TR, hpf=NULL, lpf=NULL,
+          scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
+          scale_sm_xifti_mask = mask2and3,
+          center_rows=TRUE, center_cols=GSR
+        )
+      }
     }
 
   } else {
@@ -1034,7 +1048,7 @@ fit_BBM <- function(
     C_diag <- rep(1, nT)
     H <- Hinv <- NULL
   }
-  
+
   theta00 <- theta0
   theta00$nu0_sq <- err_var
   result <- EM_BBM.independent(

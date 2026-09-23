@@ -105,7 +105,7 @@ regressor to the nuisance design matrix for each volume to scrub. If
 \code{NULL} (default), do not scrub.}
 
 \item{drop_first}{(Optional) Number of volumes to drop from the start of each
-BOLD session. Default: \code{0}.}
+BOLD session. Default: 0.}
 
 \item{TR, hpf}{These arguments control detrending. \code{TR} is the temporal
 resolution of the data, i.e. the time between volumes, in seconds;
