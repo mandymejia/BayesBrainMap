@@ -390,8 +390,19 @@ fit_BBM <- function(
   }
   nN <- length(BOLD)
 
-  if (is.list(nuisance)) { stopifnot(length(nuisance)==nN) }
-  #if (is.list(scrub)) { stopifnot(length(scrub)==nN) }
+  # Make `nuisance` and `scrub` a list too. 
+  if (is.null(nuisance)) { 
+    nuisance <- rep(list(NULL), nN)
+  } else {
+    if (!is.list(nuisance)) { nuisance <- as.list(nuisance) }
+    if (length(nuisance)==1 && nN>1) { nuisance <- nuisance[rep(1, nN)] }
+  }
+  if (is.null(scrub)) { 
+    scrub <- rep(list(NULL), nN)
+  } else {
+    if (!is.list(scrub)) { scrub <- as.list(scrub) }
+    if (length(scrub)==1 && nN>1) { scrub <- scrub[rep(1, nN)] }
+  }
 
   # `brainstructures`
   if (FORMAT == "CIFTI") {
@@ -573,12 +584,12 @@ fit_BBM <- function(
   } else if (FORMAT == "GIFTI") {
     if (ghemi == "left") {
       xii1 <- ciftiTools::select_xifti(ciftiTools::as.xifti(cortexL=do.call(cbind, BOLD[[1]]$data)), 1) * 0
-      for (bb in seq(length(BOLD))) {
+      for (bb in seq(nN)) {
         BOLD[[bb]] <- ciftiTools::as.xifti(cortexL=do.call(cbind, BOLD[[bb]]$data))
       }
     } else if (ghemi == "right") {
       xii1 <- ciftiTools::select_xifti(ciftiTools::as.xifti(cortexR=do.call(cbind, BOLD[[1]]$data)), 1) * 0
-      for (bb in seq(length(BOLD))) {
+      for (bb in seq(nN)) {
         BOLD[[bb]] <- ciftiTools::as.xifti(cortexR=do.call(cbind, BOLD[[bb]]$data))
       }
     } else { stop() }
@@ -776,15 +787,6 @@ fit_BBM <- function(
       stopifnot(all(dBOLD[seq(ldB-1)] == dBOLDs[[bb]][seq(ldB-1)]))
     }
   }
-  nT <- vapply(dBOLDs, function(x){x[ldB]}, 0)
-
-  # `drop_first` for `BOLD` (`nuisance` and `scrub` handled later)
-  if (drop_first > 0) {
-    for (bb in seq(nN)) {
-      stopifnot(drop_first < nT[bb])
-      BOLD[[bb]] <- BOLD[[bb]][,-seq(drop_first),drop=FALSE]
-    }
-  }
   dBOLDs <- lapply(BOLD, dim)
   nT <- vapply(dBOLDs, function(x){x[ldB]}, 0)
   nTmin <- min(nT)
@@ -797,7 +799,7 @@ fit_BBM <- function(
     }
     cat('Number of networks:            ', nL, "\n")
     cat('Number of BOLD sessions:       ', nN, "\n")
-    cat('Total number of timepoints:    ', sum(nT), "\n")
+    cat('Total number of timepoints:    ', sum(nT), "\n") # not account for: drop first, scrubbing
     cat('\n')
   }
 
@@ -808,7 +810,7 @@ fit_BBM <- function(
   # Vectorize `BOLD` and apply `mask2`.
   for (bb in seq(nN)) {
     if (FORMAT == "NIFTI") {
-      BOLD[[bb]] <- matrix(BOLD[[bb]][rep(mask, dBOLD[ldB])], ncol=nT)
+      BOLD[[bb]] <- matrix(BOLD[[bb]][rep(mask, dBOLD[ldB])], ncol=nT[bb])
       stopifnot(nrow(BOLD[[bb]]) == nV)
     }
     if (use_mask2) { BOLD[[bb]] <- BOLD[[bb]][mask2,,drop=FALSE] }
@@ -857,134 +859,80 @@ fit_BBM <- function(
     if (use_mask2) { mask2[mask2][!mask3] <- FALSE }
   }
 
-  ## Nuisance regression and scrubbing -----------------------------------------
+  nT_pre <- nT
+
+  # `drop_first` ---------------------------------------------------------------
+  stopifnot(fMRItools::is_posNum(drop_first, zero_ok=TRUE))
+  if (drop_first > 0) {
+    stopifnot(drop_first < nTmin - 2)
+    # Drop columns from BOLD; drop rows from nuisance; adjust `scrub`.
+    for (bb in seq(nN)) {
+      BOLD[[bb]] <- BOLD[[bb]][,-seq(drop_first),drop=FALSE]
+      if (!is.null(scrub[[bb]])) {
+        if (is.logical(scrub[[bb]]) && length(scrub[[bb]]) == nT[bb]) {
+          scrub[[bb]] <- which(scrub[[bb]])
+        }
+        scrub[[bb]] <- scrub[[bb]][scrub[[bb]] > drop_first] - drop_first
+      }
+      if (!is.null(nuisance[[bb]])) {
+        nuisance[[bb]] <- nuisance[[bb]][-seq(drop_first),,drop=FALSE]
+      }
+    }
+  }
+
+
+
+  # Normalize ------------------------------------------------------------------
+  if (!is.null(xii1) && scale_sm=="local") {
+    xii1 <- ciftiTools::add_surf(xii1, surfL=scale_sm_surfL, surfR=scale_sm_surfR)
+  }
+
+  mask2and3 <- if (use_mask2) { mask2 } else { mask3 } # [TO DO] patch???
+
   if (verbose) { cat("\n") }
   if (verbose) { cat("Pre-processing BOLD data.\n") }
 
-  # Nuisance regression and scrubbing. -----------------------------------------
-  add_to_nuis <- function(x, nuis) {
-    if (is.null(nuis)) {
-      if(is.matrix(x)) {result <- x} else {result <- as.matrix(x, ncol=1)}
-    } else {
-      result <- cbind(x, nuis)
-    }
-    return(result)
-  }
-  
-  nmat <- vector("list", nN)
-  mu <- vector("list", nN)
-  nDCT <- if (hpf==0) { NULL } else { vector("numeric", nN) } # could return this
-  nT_pre <- nT
-  for (nn in seq(nN)) {
-    if (verbose && nN > 1) { cat(paste0("Session ", nn, ":")) }
-    # Collect nuisance matrix columns.
-    nmat[nn] <- list(NULL)
-    # Collect means for each column
-    mu[nn] <- list(NULL)
-    ## `nuisance`
-    nuisance_nn <- if (is.list(nuisance)) { nuisance[[nn]] } else { nuisance }
-    if (!is.null(nuisance_nn)) {
-      stopifnot(is.numeric(nuisance_nn) && is.matrix(nuisance_nn))
-      if (drop_first > 0) { nuisance_nn <- nuisance_nn[-seq(drop_first),,drop=FALSE] }
-      stopifnot(nrow(nuisance_nn) == nT[nn])
-      if (verbose && nN > 1) { cat("\t") }
-      if (verbose) { cat("Using", ncol(nuisance_nn), "regressors from `nuisance`.\n") }
-      nmat[[nn]] <- add_to_nuis(nuisance_nn, nmat[[nn]])
-    }
-    ## `scrub`
-    scrub_nn <- NULL
-    if (!is.null(scrub)) {
-      scrub_nn <- if (is.list(scrub)) { scrub[[nn]] } else { scrub }
-      if (is.logical(scrub_nn)) { scrub_nn <- which(scrub_nn) }
-      if (length(scrub_nn) > 0) {
-        if (drop_first > 0) { 
-          scrub_nn <- scrub_nn - drop_first
-          scrub_nn <- scrub_nn[scrub_nn>0]
-        }
-        scrub_nn_mat <- flags2spikes(scrub_nn, nT[nn])
-        if (verbose && nN > 1) { cat("\t") }
-        if (verbose) { cat("Scrubbing", ncol(scrub_nn_mat), "volumes.\n") }
-        nmat[[nn]] <- add_to_nuis(scrub_nn_mat, nmat[[nn]])
-      } else {
-        scrub_nn <- NULL
-      }
-    }
-    ## DCT
-    if (hpf != 0) {
-      if (TR=="from_xifti_metadata") {
-        stop("`hpf!=0`, but `TR`` was neither provided nor able to be inferred from the data. Please provide `TR`.")
-      }
-      nDCT[nn] <- round(dct_convert(nT[nn], TR=TR, f=hpf))
-      if (verbose && nN > 1) { cat("\t") }
-      if (verbose) { cat("Using", nDCT[nn], "DCT bases.\n") }
-      nmat[[nn]] <- add_to_nuis(dct_bases(nT[nn], nDCT[nn]), nmat[[nn]])
-    }
-
-    ## Perform nuisance regression, and drop scrubbed volumes, if applicable. ----
-    ones <- rep(1, nT[[nn]])
-    nmat[[nn]] <- add_to_nuis(ones, nmat[[nn]]) #add intercept
-    
-    # Calculate mu as the intercept from nuisance regression. 
-    mu[[nn]] <- (solve(crossprod(nmat[[nn]])) %*% t(nmat[[nn]]) %*% t(BOLD[[nn]]))[1,]
-    
-    if (verbose && nN > 1) { cat("\t") }
-    if (verbose) { cat("Doing nuisance regression with", ncol(nmat[[nn]]), "total regressors.\n") }
-    BOLD[[nn]] <- nuisance_regression(BOLD[[nn]], nmat[[nn]])
-    
-    # Drop scrubbed volumes, if applicable.
-    if (!is.null(scrub_nn)) {
-      BOLD[[nn]] <- BOLD[[nn]][,-scrub_nn,drop=FALSE]
-      dBOLDs <- lapply(BOLD, dim)
-      nT <- vapply(dBOLDs, function(x){x[ldB]}, 0)
-      nTmin <- min(nT)
-    }
-  }
-  if (sum(nT) != sum(nT_pre)) {
-    if (verbose && nN > 1) { cat("\t") }
-    if (verbose) { cat('Timepoints after scrubbing:    ', sum(nT), "\n") }
-  }
-
-  if (all(vapply(nmat, is.null, FALSE))) { nmat <- NULL }
-
-  ## Center and scale `BOLD` ---------------------------------------------------
   if (verbose) {
     cat("Normalizing BOLD: centering location timecourses")
     if (GSR) { cat(", centering volumes (GSR)") }
     if (scale_by != "none") { cat(",", scale_by, "scaling") }
     cat(".\n")
   }
-
-  if (!is.null(xii1) && scale_sm=="local" && scale_sm_FWHM > 0) {
-    xii1 <- ciftiTools::add_surf(xii1, surfL=scale_sm_surfL, surfR=scale_sm_surfR)
+  
+  nmat <- vector("list", nN)
+  for (bb in seq(nN)) {
+    if (verbose && nN > 1) { cat(paste0("Session ", bb, ":")) }
+    x <- norm_BOLD(
+      BOLD[[bb]],
+      nuisance=nuisance[[bb]], scrub=scrub_bb,
+      TR=TR, hpf=hpf, #lpf=lpf,
+      scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
+      scale_sm_xifti_mask = mask2and3,
+      center_rows=TRUE, center_cols=GSR,
+      give_stats=TRUE
+    )
+    nmat[[bb]] <- x$nmat
+    BOLD[[bb]] <- x$BOLD
   }
 
-  mask2and3 <- if (use_mask2) { mask2 } else { mask3 } # [TO DO] patch???
-  
-  BOLD <- Map(
-    function(B, s_pc) norm_BOLD(
-      BOLD=B,
-      center_rows = TRUE, center_cols = GSR,
-      scale_by = scale_by, 
-      scale_sm_FWHM = scale_sm_FWHM,
-      scale_sm_xifti = xii1,
-      scale_sm_xifti_mask = mask2and3,
-      hpf = 0
-    ),
-    BOLD, NULL
-  )
+  nT <- vapply(BOLD, ncol, 0)
+  if (sum(nT) != sum(nT_pre)) {
+    if (verbose && nN > 1) { cat("\t") }
+    if (verbose) { cat('Timepoints after dropping volumes and scrubbing:    ', sum(nT), "\n") }
+  }
 
   ## Estimate and subtract nuisance ICs ----------------------------------------
   if (is.null(Q2) || Q2!=0) {
     if (verbose) { cat("Removing nuisance ICs.\n") }
 
     Q2_est <- vector("numeric", nN)
-    for (nn in seq(nN)) {
+    for (bb in seq(nN)) {
       x <- rm_nuisIC(
-        BOLD[[nn]], prior_mean=prior$mean, Q2=Q2, Q2_max=Q2_max,
+        BOLD[[bb]], prior_mean=prior$mean, Q2=Q2, Q2_max=Q2_max,
         verbose=verbose, return_Q2=TRUE
       )
-      BOLD[[nn]] <- x$BOLD
-      Q2_est[nn] <- x$Q2
+      BOLD[[bb]] <- x$BOLD
+      Q2_est[bb] <- x$Q2
     }
     rm(x)
 
@@ -995,8 +943,15 @@ fit_BBM <- function(
       cat(".\n")
     }
     
-    # Center `BOLD` sessions (again).
-    BOLD <- lapply(BOLD, function(x){x - rowMeans(x)})
+    for (bb in seq(nN)) {
+      BOLD[[bb]] <- norm_BOLD(
+        BOLD=BOLD[[bb]],
+        TR=TR, hpf=NULL, lpf=NULL,
+        scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
+        scale_sm_xifti_mask = mask2and3,
+        center_rows=TRUE, center_cols=GSR
+      )
+    }
 
   } else {
     Q2_est <- rep(0, nN)
