@@ -358,12 +358,16 @@ dual_reg2 <- function(
   ) }
 
   # Center and scale. Do not do the big regression again.
-  center_scale_BOLD <- function(B) { norm_BOLD(
-    BOLD=B,
-    TR=TR, hpf=NULL, lpf=NULL,
-    scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
-    center_rows=TRUE, center_cols=GSR
-  ) }
+  center_scale_BOLD <- function(B, scale_meas=NULL, give_stats=FALSE) { 
+    norm_BOLD(
+      BOLD=B,
+      TR=TR, hpf=NULL, lpf=NULL,
+      scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, scale_sm_xifti=xii1,
+      scale_FUN = if (!is.null(scale_meas)) { function(q){scale_meas} } else { NULL },
+      center_rows=TRUE, center_cols=GSR,
+      give_stats=give_stats
+    ) 
+  }
 
   # Handle continuous vs. discrete prior
   DR_FUN <- if (template_parc) {
@@ -393,8 +397,14 @@ dual_reg2 <- function(
     part1 <- seq(round(nT/2))
     part2 <- setdiff(seq(nT), part1)
     # Center and scale. (No nuisance regression, temporal filtering, etc.)
-    BOLDh1 <- center_scale_BOLD(BOLD[, part1, drop=FALSE]) #first half of data
-    BOLDh2 <- center_scale_BOLD(BOLD[, part2, drop=FALSE]) #second half of data
+    ### First half
+    BOLDh1 <- center_scale_BOLD(BOLD[, part1, drop=FALSE], give_stats=TRUE)
+    BOLD_mu1 <- BOLDh1$mu
+    BOLDh1 <- BOLDh1$BOLD
+    ### Second half
+    BOLDh2 <- center_scale_BOLD(BOLD[, part2, drop=FALSE], give_stats=TRUE)
+    BOLD_mu2 <- BOLDh2$mu
+    BOLDh2 <- BOLDh2$BOLD
     
     # 2. Two DR's. ---
     out$test <- DR_noNorm(BOLDh1)
@@ -402,22 +412,30 @@ dual_reg2 <- function(
 
   } else {
     # 1. Normalizing. ---
+    ### BOLD
     BOLD <- norm_BOLD(
       BOLD, 
       nuisance=nuisance[[1]], scrub=scrub[[1]],
       TR=TR, hpf=hpf, lpf=lpf,
       center_rows=TRUE, center_cols=GSR,
       scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, 
-      scale_sm_xifti=xii1
+      scale_sm_xifti=xii1,
+      give_stats=TRUE
     )
+    BOLD_mu1 <- BOLD$mu
+    BOLD <- BOLD$BOLD
+    ### BOLD2
     BOLD2 <- norm_BOLD(
       BOLD2, 
       nuisance=nuisance[[2]], scrub=scrub[[2]],
       TR=TR, hpf=hpf, lpf=lpf,
       center_rows=TRUE, center_cols=GSR,
       scale_by=scale_by, scale_sm_FWHM=scale_sm_FWHM, 
-      scale_sm_xifti=xii1
+      scale_sm_xifti=xii1,
+      give_stats=TRUE
     )
+    BOLD_mu2 <- BOLD2$mu
+    BOLD2 <- BOLD2$BOLD
 
     # 2. Two DR's. ---
     out$test <- DR_noNorm(BOLD)
@@ -486,8 +504,13 @@ dual_reg2 <- function(
   }
   
   # Center and scale `BOLD` and `BOLD2` (again).
-  BOLD <- center_scale_BOLD(BOLD)
-  BOLD2 <- center_scale_BOLD(BOLD2)
+  if (scale_by=="mean") {
+    BOLD <- center_scale_BOLD(BOLD, scale_meas=BOLD_mu1)
+    BOLD2 <- center_scale_BOLD(BOLD2, scale_meas=BOLD_mu2)
+  } else {
+    BOLD <- center_scale_BOLD(BOLD)
+    BOLD2 <- center_scale_BOLD(BOLD2)
+  }
 
   if (!is.null(FC_updateA_path)) {
     BOLDkeep <- list(
