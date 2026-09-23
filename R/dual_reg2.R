@@ -279,10 +279,14 @@ dual_reg2 <- function(
   if (drop_first > 0) {
     stopifnot(drop_first < ncol(BOLD) - 2)
     # Drop columns from BOLD; drop rows from nuisance; adjust `scrub`.
-    # (Already done for scrubbing.)
     if (!retest) {
       BOLD <- BOLD[,-seq(drop_first),drop=FALSE]
-      if (!is.null(scrub)) { scrub <- scrub[scrub > drop_first] - drop_first }
+      if (!is.null(scrub)) { 
+        if (is.logical(scrub) && length(scrub) == ncol(BOLD)) {
+          scrub <- which(scrub)
+        }
+        scrub <- scrub[scrub > drop_first] - drop_first
+      }
       if (!is.null(nuisance)) { nuisance <- nuisance[-seq(drop_first),,drop=FALSE] }
     } else {
       stopifnot(drop_first < ncol(BOLD2) - 2)
@@ -293,9 +297,6 @@ dual_reg2 <- function(
       if (!is.null(nuisance[[1]])) { nuisance[1] <- list(nuisance[[1]][-seq(drop_first),,drop=FALSE]) }
       if (!is.null(nuisance[[2]])) { nuisance[2] <- list(nuisance[[2]][-seq(drop_first),,drop=FALSE]) }
     }
-
-    # Do not do this again.
-    drop_first <- 0
   }
 
   # Check for missing values. --------------------------------------------------
