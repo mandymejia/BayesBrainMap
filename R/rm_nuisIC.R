@@ -26,34 +26,35 @@ Q2_max_check <- function(Q2_max, nQ, nT){
 
 #' Remove nuisance ICs from data
 #'
-#' Subtract estimated nuisance ICs from data matrix. If the number of 
+#' Subtract estimated nuisance ICs from data matrix. If the number of
 #'  nuisance ICs is not provided, will estimate using PESEL (the nuisance ICs
 #'  are a rotation of the nuisance PCs).
-#' 
-#' @param BOLD the row-centered \eqn{V} by \eqn{T} data
-#' @param DR,prior_mean We need an initial estimate of the brain networks, so 
+#'
+#' @param BOLD the row-centered \eqn{V} by \eqn{T} data. It should already be 
+#'  scaled as desired.
+#' @param DR,prior_mean We need an initial estimate of the brain networks, so
 #'  that we can avoid removing them during removal of the estimated noise ICs.
 #'  Provide either \code{DR} if dual regression has already been calculated, or
-#'  \code{prior_mean} (in this context, equivalent to a template result) if it 
+#'  \code{prior_mean} (in this context, equivalent to a template result) if it
 #'  hasn't. Exactly one must be provided.
-#' @param Q2 The number of nuisance ICs. If \code{NULL} (default) will estimate 
+#' @param Q2 The number of nuisance ICs. If \code{NULL} (default) will estimate
 #'  using PESEL.
 #' @param Q2_max If \code{Q2} is \code{NULL}, PESEL's estimate will be less than
 #'  or equal to \code{Q2_max}. If \code{Q2_max} is \code{NULL} (default), do not
-#'  limit PESEL's estimate. 
-#' @param checkRowCenter Check row means, and raise an error if they are 
+#'  limit PESEL's estimate.
+#' @param checkRowCenter Check row means, and raise an error if they are
 #'  nonzero? Default: \code{TRUE}.
 #' @param verbose If \code{TRUE}, display progress updates.
 #' @param return_Q2 Return (estimated) \code{Q2} too? Default: \code{FALSE}.
-#' 
-#' @return The \eqn{V} by \eqn{T} data with the estimated nuisance ICs 
-#'  subtracted from it. If \code{return_Q2}, a list of length two: the second 
+#'
+#' @return The \eqn{V} by \eqn{T} data with the estimated nuisance ICs
+#'  subtracted from it. If \code{return_Q2}, a list of length two: the second
 #'  entry will be \code{Q2}.
-#' 
+#'
 #' @importFrom pesel pesel
 #' @importFrom fMRItools colCenter dual_reg
-#' @keywords internal 
-rm_nuisIC <- function(BOLD, DR=NULL, prior_mean=NULL, Q2=NULL, Q2_max=NULL, 
+#' @keywords internal
+rm_nuisIC <- function(BOLD, DR=NULL, prior_mean=NULL, Q2=NULL, Q2_max=NULL,
   checkRowCenter=TRUE, verbose=FALSE, return_Q2=FALSE){
 
   if ( (!is.null(Q2) && Q2==0) || (!is.null(Q2_max) && Q2_max==0) ) {
@@ -78,7 +79,9 @@ rm_nuisIC <- function(BOLD, DR=NULL, prior_mean=NULL, Q2=NULL, Q2_max=NULL,
   Q2_max <- Q2_max_check(Q2_max, nQ=nQ, nT=ncol(BOLD))
 
   # i. PERFORM DUAL REGRESSION TO GET INITIAL ESTIMATE OF TEMPLATE ICS
-  if (is.null(DR)) { DR <- dual_reg(BOLD, prior_mean) }
+  if (is.null(DR)) {
+    DR <- dual_reg(BOLD, GICA=prior_mean, scale_by="none")
+  }
 
   # ii. SUBTRACT THOSE ESTIMATES FROM THE ORIGINAL DATA --> BOLD2
   BOLD2 <- BOLD - t(DR$A %*% DR$S) #data without networks
