@@ -521,7 +521,7 @@ Chol_samp_fun <- function(Chol_vals, p, M, chol_diag, chol_offdiag, Chol_mat_bla
 #' BOLD <- list(B1=mS, B2=mS, B3=mS)
 #' BOLD <- lapply(BOLD, function(x){x + rnorm(nV*nT, mean = 100, sd=.05)})
 #' template <- mU
-#' estimate_prior(BOLD=BOLD, template=mU, FC_nSamp=2000, scale_sm_FWHM=Inf)
+#' estimate_prior(BOLD=BOLD, template=mU, FC_nSamp=2000, scale_sm_FWHM=0)
 #'
 #' \dontrun{
 #'  estimate_prior(

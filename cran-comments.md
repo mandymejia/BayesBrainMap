@@ -16,4 +16,6 @@ None.
 
 Passes all the tests in `tests/testthat.R`
 
-## Requires 
+## Previous submission
+
+An outdated version of `BayesBrainMap` was accidentally submitted previously (October 1, 2026).
